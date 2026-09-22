@@ -1,26 +1,80 @@
 @import "tailwindcss";
 
+/*
+  Light-first, tokens from artifact/frontend-design.md. Deliberately not
+  warm cream + terracotta (the industry-default "light, approachable"
+  combination) — a cooler, less-common stone neutral instead, with a
+  single ink-indigo accent rather than an earthy one.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #eeeee4;
+  --ink: #221f1a;
+  --accent: #31456b;
+  --moss: #4b7a4e;
+  --oxblood: #a6503f;
+  --ash: #8a8474;
+  --rule: #dcdccf;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* System preference — only when the user hasn't made an explicit choice. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --paper: #18140f;
+    --ink: #ede7d8;
+    --accent: #7c93c4;
+    --moss: #7fb37f;
+    --oxblood: #d18272;
+    --ash: #8a8474;
+    --rule: #33301f;
   }
 }
 
+/* Explicit user choice — wins over system preference either way. */
+:root[data-theme="dark"] {
+  --paper: #18140f;
+  --ink: #ede7d8;
+  --accent: #7c93c4;
+  --moss: #7fb37f;
+  --oxblood: #d18272;
+  --ash: #8a8474;
+  --rule: #33301f;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-moss: var(--moss);
+  --color-oxblood: var(--oxblood);
+  --color-ash: var(--ash);
+  --color-rule: var(--rule);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Pulsing dot on the pipeline trail's active step — frontend-design.md's
+   one deliberate motion, not a spinner. */
+@keyframes trail-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.4);
+  }
+}
+.trail-pulse {
+  animation: trail-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .trail-pulse {
+    animation: none;
+  }
 }
