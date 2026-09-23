@@ -8,15 +8,31 @@ import { uncheckedCandidateCount } from "../tools/progress";
  * found = ruledOut + checked + unchecked, always.
  * - ruledOut: bought from LinkedIn but excluded by code before checking
  *   (no usable website, size or HQ country outside the request). Expected.
- * - checked: companies Hound dealt with (assessed, or at least scraped).
+ * - checked: companies Hound assessed. Once the search has ended this also
+ *   includes websites it read but couldn't use; while it's running, those
+ *   are "being assessed" instead, so the count matches the list.
  * - unchecked: saved companies nobody got to. The same count the status
  *   note uses, so the page never shows two different numbers.
  * Searches from before candidates were saved can't split ruled-out from
  * unchecked, so everything not assessed counts as unchecked there.
  */
-export type SearchFunnelCounts = { found: number; ruledOut: number; checked: number; unchecked: number; leads: number };
+export type SearchFunnelCounts = {
+  found: number;
+  ruledOut: number;
+  checked: number;
+  /** Read but not yet assessed (only while running). */
+  beingAssessed: number;
+  unchecked: number;
+  leads: number;
+};
 
-async function funnelFor(runId: string, found: number, assessed: number, leads: number): Promise<SearchFunnelCounts> {
+async function funnelFor(
+  runId: string,
+  found: number,
+  assessed: number,
+  leads: number,
+  isActive: boolean
+): Promise<SearchFunnelCounts> {
   const { count, error } = await supabaseService()
     .from("candidates")
     .select("id", { count: "exact", head: true })
@@ -26,13 +42,15 @@ async function funnelFor(runId: string, found: number, assessed: number, leads: 
   const saved = count ?? 0;
 
   if (saved === 0) {
-    return { found, ruledOut: 0, checked: assessed, unchecked: Math.max(0, found - assessed), leads };
+    return { found, ruledOut: 0, checked: assessed, beingAssessed: 0, unchecked: Math.max(0, found - assessed), leads };
   }
   const unchecked = await uncheckedCandidateCount(runId);
+  const dealtWith = Math.max(assessed, saved - unchecked);
   return {
     found,
     ruledOut: Math.max(0, found - saved),
-    checked: Math.max(assessed, saved - unchecked),
+    checked: isActive ? assessed : dealtWith,
+    beingAssessed: isActive ? dealtWith - assessed : 0,
     unchecked,
     leads,
   };
@@ -120,7 +138,8 @@ export async function getSearch(runId: string) {
     runId,
     Number(run.candidates_used ?? 0),
     allLeads.length,
-    allLeads.filter((l) => l.qualification_status === "qualified").length
+    allLeads.filter((l) => l.qualification_status === "qualified").length,
+    run.status === "pending" || run.status === "running"
   );
 
   return {

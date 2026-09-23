@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { safeNextPath } from "./session.ts";
+import { safeNextPath } from "../lib/session.ts";
 
 test("safeNextPath keeps same-site paths", () => {
   assert.equal(safeNextPath("/searches/abc"), "/searches/abc");

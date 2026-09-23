@@ -1,7 +1,7 @@
 /**
  * Pure, deterministic discovery logic for the LinkedIn company search
  * actor (harvestapi/linkedin-company-search) — no I/O, no imports, so it
- * can be unit-tested directly (lib/discovery.test.ts). Claude interprets
+ * can be unit-tested directly (tests/discovery.test.ts). Claude interprets
  * the user's words into the refined ICP; everything here that has one
  * right answer (size buckets, location values, URL cleanup, pre-scrape
  * checks) is code, never the model. See artifact/design.md Section 3 and

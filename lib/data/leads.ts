@@ -62,8 +62,7 @@ type Email = { subject?: string; body?: string };
 const email = (row: LeadListRow, i: number) => (Array.isArray(row.outreach_sequence) ? (row.outreach_sequence[i] as Email) : undefined);
 const list = (v: unknown) => (Array.isArray(v) ? (v as string[]).join("\n") : "");
 
-/** The columns a spreadsheet or CRM import wants, in plain names. */
-export const LEAD_CSV_COLUMNS: CsvColumn<LeadListRow>[] = [
+const LEAD_COLUMNS: CsvColumn<LeadListRow>[] = [
   { header: "Company", value: (r) => r.company_name },
   { header: "Website", value: (r) => `https://${r.company_domain}` },
   { header: "LinkedIn page", value: (r) => r.linkedin_url },
@@ -73,6 +72,9 @@ export const LEAD_CSV_COLUMNS: CsvColumn<LeadListRow>[] = [
   { header: "Worth noting", value: (r) => list(r.concerns) },
   { header: "Sources", value: (r) => list(r.source_urls) },
   { header: "Source summary", value: (r) => r.source_summary },
+];
+
+const OUTREACH_COLUMNS: CsvColumn<LeadListRow>[] = [
   { header: "Email 1 subject", value: (r) => email(r, 0)?.subject },
   { header: "Email 1", value: (r) => email(r, 0)?.body },
   { header: "Email 2 subject", value: (r) => email(r, 1)?.subject },
@@ -80,6 +82,18 @@ export const LEAD_CSV_COLUMNS: CsvColumn<LeadListRow>[] = [
   { header: "Email 3 subject", value: (r) => email(r, 2)?.subject },
   { header: "Email 3", value: (r) => email(r, 2)?.body },
   { header: "LinkedIn message", value: (r) => r.linkedin_message },
+];
+
+const CONTEXT_COLUMNS: CsvColumn<LeadListRow>[] = [
   { header: "Search", value: (r) => r.runs.objective },
   { header: "Found on", value: (r) => r.created_at.slice(0, 10) },
 ];
+
+/**
+ * The columns a spreadsheet or CRM import wants, in plain names. Outreach
+ * drafts are left out unless asked for: they make the file very wide, and
+ * the lead list is what usually gets imported.
+ */
+export function leadCsvColumns(includeOutreach: boolean): CsvColumn<LeadListRow>[] {
+  return [...LEAD_COLUMNS, ...(includeOutreach ? OUTREACH_COLUMNS : []), ...CONTEXT_COLUMNS];
+}

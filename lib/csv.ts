@@ -1,6 +1,6 @@
 /**
  * CSV for spreadsheets and CRMs. Pure, no imports, unit-tested in
- * lib/csv.test.ts.
+ * tests/csv.test.ts.
  *
  * Some values come from company websites. A cell that starts with = + - @
  * (or a tab / carriage return) can run as a formula when the file is

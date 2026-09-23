@@ -20,11 +20,13 @@ export function ExportCsvButton({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [includeReview, setIncludeReview] = useState(false);
+  const [includeOutreach, setIncludeOutreach] = useState(false);
   const titleId = useId();
   const checkboxId = useId();
+  const outreachId = useId();
 
-  const join = baseHref.includes("?") ? "&" : "?";
-  const href = includeReview ? `${baseHref}${join}include=needs_review` : baseHref;
+  const extra = [includeReview ? "include=needs_review" : null, includeOutreach ? "outreach=1" : null].filter(Boolean);
+  const href = extra.length ? `${baseHref}${baseHref.includes("?") ? "&" : "?"}${extra.join("&")}` : baseHref;
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const total = leadCount + (includeReview ? (reviewCount ?? 0) : 0);
 
@@ -53,7 +55,7 @@ export function ExportCsvButton({
               Export leads
             </h2>
             <p className="text-sm text-ash">
-              A CSV for a spreadsheet or your CRM, with each company&apos;s details, reasoning and outreach.
+              A CSV for a spreadsheet or your CRM, with each company&apos;s details and why it fits.
             </p>
           </div>
 
@@ -79,6 +81,19 @@ export function ExportCsvButton({
               {reviewCount !== undefined && (
                 <span className="text-ash tabular-nums">{plural(reviewCount, "company", "companies")}</span>
               )}
+            </label>
+            <label htmlFor={outreachId} className="flex cursor-pointer items-start gap-2.5 border-t border-rule pt-3">
+              <input
+                id={outreachId}
+                type="checkbox"
+                checked={includeOutreach}
+                onChange={(e) => setIncludeOutreach(e.target.checked)}
+                className="mt-0.5 accent-[var(--accent)]"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span>Include outreach drafts</span>
+                <span className="text-xs text-ash">Adds the 3 emails and the LinkedIn message as extra columns.</span>
+              </span>
             </label>
           </div>
 

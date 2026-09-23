@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "@/lib/supabase/auth";
-import { listLeads, LEAD_CSV_COLUMNS } from "@/lib/data/leads";
+import { listLeads, leadCsvColumns } from "@/lib/data/leads";
 import { toCsv } from "@/lib/csv";
 
 /** The Leads page's current view (same filters) as a CSV. */
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     includeReview: params.get("include") === "needs_review",
   });
 
-  return new NextResponse(toCsv(rows, LEAD_CSV_COLUMNS), {
+  return new NextResponse(toCsv(rows, leadCsvColumns(params.get("outreach") === "1")), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="hound-leads-${new Date().toISOString().slice(0, 10)}.csv"`,

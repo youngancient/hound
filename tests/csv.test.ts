@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { neutralizeCell, toCsv } from "./csv.ts";
+import { neutralizeCell, toCsv } from "../lib/csv.ts";
 
 test("neutralizeCell stops spreadsheet formulas", () => {
   assert.equal(neutralizeCell("=HYPERLINK(\"http://evil\")"), "'=HYPERLINK(\"http://evil\")");

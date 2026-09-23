@@ -7,7 +7,7 @@ import type { SearchFunnelCounts } from "@/lib/data/searches";
  * honestly: companies ruled out on purpose are not "missed" ones.
  */
 export function SearchFunnel({ counts, isActive }: { counts: SearchFunnelCounts; isActive: boolean }) {
-  const { found, ruledOut, checked, unchecked, leads } = counts;
+  const { found, ruledOut, checked, beingAssessed, unchecked, leads } = counts;
   const pct = (n: number) => (found > 0 ? `${Math.min(100, (n / found) * 100)}%` : "0%");
 
   const steps = [
@@ -34,8 +34,9 @@ export function SearchFunnel({ counts, isActive }: { counts: SearchFunnelCounts;
         </div>
       )}
 
-      {(ruledOut > 0 || unchecked > 0) && (
+      {(ruledOut > 0 || unchecked > 0 || beingAssessed > 0) && (
         <ul className="flex flex-col gap-1 text-xs text-ash">
+          {beingAssessed > 0 && <li>{beingAssessed} read, being assessed now</li>}
           {ruledOut > 0 && (
             <li>
               {ruledOut} ruled out automatically (no usable website, or size or country outside your request)

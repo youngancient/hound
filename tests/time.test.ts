@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatDateTime, formatDuration, formatRelative } from "./time.ts";
+import { formatDateTime, formatDuration, formatRelative } from "../lib/time.ts";
 
 test("formatDuration uses the 2min14s style", () => {
   assert.equal(formatDuration(45_000), "45s");

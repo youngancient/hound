@@ -5,8 +5,20 @@ import { leadExists, qualifiedLeadCountForRun } from "./save-lead";
 import { reserveScrape } from "./budget";
 import { FIRECRAWL_COST_PER_SCRAPE, FIRECRAWL_RETRY_LIMIT } from "../agent-config";
 import type { ToolLimits } from "../schemas";
+import { rateLimitWaitMs, trimWords } from "../scrape-text";
 
 const THIN_CONTENT_MIN_WORDS = 100;
+
+/**
+ * Only the start of a page goes to the agent: that's where a company says
+ * what it does and for whom, which is what qualification needs. Whole pages
+ * (one real search hit 8,000 words) made sessions slow and costly and gave
+ * the agent more to lose track of (design.md Section 7, context growth).
+ */
+const MAX_WORDS_FOR_AGENT = 2000;
+
+/** Firecrawl's free plan rate-limits bursts; wait out a limit instead of failing (capped). */
+const MAX_RATE_LIMIT_WAITS = 2;
 
 export type ScrapeOutcome =
   | { kind: "skipped_existing" }
@@ -50,6 +62,7 @@ export async function scrapeWebsite(
   }
 
   let attempt = 0;
+  let rateLimitWaits = 0;
   let lastError: unknown;
 
   while (attempt <= FIRECRAWL_RETRY_LIMIT) {
@@ -81,14 +94,23 @@ export async function scrapeWebsite(
         costUsd: FIRECRAWL_COST_PER_SCRAPE,
       });
 
+      const { text, trimmed } = trimWords(page.markdown, MAX_WORDS_FOR_AGENT);
       return {
         kind: "ok",
         url: page.url,
         title: page.title,
-        content: wrapUntrustedContent(page.url, page.markdown),
+        content: wrapUntrustedContent(page.url, trimmed ? `${text}\n\n[Page trimmed: showing the first ${MAX_WORDS_FOR_AGENT} of ${wordCount} words.]` : text),
       };
     } catch (err) {
       lastError = err;
+      // A rate limit isn't a failure of this site: wait as asked and try
+      // again, within the same scrape reservation, without using up a retry.
+      const waitMs = rateLimitWaitMs(err);
+      if (waitMs !== null && rateLimitWaits < MAX_RATE_LIMIT_WAITS) {
+        rateLimitWaits++;
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
       attempt++;
     }
   }

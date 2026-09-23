@@ -1,6 +1,6 @@
 /**
  * Time formatting shared by the timer and dates. Pure, no imports, so it's
- * unit-tested directly (lib/time.test.ts) and safe in client components.
+ * unit-tested directly (tests/time.test.ts) and safe in client components.
  */
 
 /** 45s, 2min14s, 3min0s, 1h3min5s. */

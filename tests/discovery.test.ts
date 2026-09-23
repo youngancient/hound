@@ -10,7 +10,7 @@ import {
   normalizeWebsite,
   screenCandidates,
   type CompanyCandidate,
-} from "./discovery.ts";
+} from "../lib/discovery.ts";
 
 test("companySizeBuckets: includes a bucket only when it overlaps by more than a boundary value", () => {
   assert.deepEqual(companySizeBuckets({ min: 10, max: 100 }), ["11-50", "51-200"]);

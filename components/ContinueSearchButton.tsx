@@ -1,18 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Spinner } from "./Spinner";
 import { SESSION_ENDED_MESSAGE, loginUrlFor } from "@/lib/session";
 
-/** Continues a failed search as the same search; the page refreshes into its running state. */
+/**
+ * Continues a failed search as the same search. The button stays in its
+ * loading state until the refreshed page (now running, progress row at
+ * "Understanding the request") has actually rendered, so there's no gap
+ * where it looks like nothing happened or can be clicked twice.
+ */
 export function ContinueSearchButton({ runId }: { runId: string }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [refreshing, startRefresh] = useTransition();
+  const loading = requesting || refreshing;
 
   async function handleContinue() {
-    setLoading(true);
+    setRequesting(true);
     try {
       const res = await fetch(`/api/runs/${runId}/continue`, { method: "POST" });
       if (res.status === 401) {
@@ -26,11 +33,11 @@ export function ContinueSearchButton({ runId }: { runId: string }) {
         toast.error(body?.error ?? "We couldn't continue your search. Please try again.");
         return;
       }
-      router.refresh();
+      startRefresh(() => router.refresh());
     } catch {
       toast.error("We couldn't continue your search. Please try again.");
     } finally {
-      setLoading(false);
+      setRequesting(false);
     }
   }
 
