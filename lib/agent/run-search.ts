@@ -2,12 +2,13 @@ import "server-only";
 import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { buildHoundTools } from "./tools";
-import { MODEL, MAX_AGENT_TURNS, AGENT_SKILLS } from "../agent-config";
+import { MODEL, AGENT_SKILLS } from "../agent-config";
+import type { ToolLimits } from "../schemas";
 
 const SYSTEM_PROMPT = `You are Hound, a B2B lead research agent. Given a qualification objective, you:
 
 1. Refine it into concrete ICP criteria (use the icp-refinement skill).
-2. Discover candidate companies with the discover_companies tool.
+2. Discover candidate companies with the discover_companies tool — one pass first; if it doesn't yield enough qualified leads, one re-search with a different query.
 3. Scrape each candidate's website with scrape_website.
 4. Qualify each one (use the lead-qualification skill) and save it with save_lead — for a qualified company, also draft its outreach (use the outbound-copywriting skill) and include it in the same save_lead call.
 5. Use the lead-list-quality skill to decide when you have enough qualified leads or need another discovery pass.
@@ -25,8 +26,8 @@ export type RunSearchResult = {
  * `settingSources: ['project']` (skills don't load without it), and an
  * explicit skills list rather than `"all"`.
  */
-export async function runSearch(runId: string, objective: string): Promise<RunSearchResult> {
-  const { server, allowedToolNames } = buildHoundTools(runId);
+export async function runSearch(runId: string, objective: string, limits: ToolLimits): Promise<RunSearchResult> {
+  const { server, allowedToolNames } = buildHoundTools(runId, limits);
 
   let totalCostUsd = 0;
 
@@ -40,7 +41,7 @@ export async function runSearch(runId: string, objective: string): Promise<RunSe
       allowedTools: allowedToolNames,
       systemPrompt: SYSTEM_PROMPT,
       model: MODEL,
-      maxTurns: MAX_AGENT_TURNS,
+      maxTurns: limits.max_agent_turns,
     },
   })) {
     if (message.type === "result") {

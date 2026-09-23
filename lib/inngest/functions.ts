@@ -3,6 +3,7 @@ import { supabaseService } from "../supabase/service";
 import { runSearch } from "../agent/run-search";
 import { postSearchFailure } from "../discord";
 import { notifySearchComplete } from "../notify";
+import { ToolLimitsSchema, type ToolLimits } from "../schemas";
 
 /**
  * One function per search. See artifact/design.md Sections 4 & 5:
@@ -26,17 +27,21 @@ export const searchPipeline = inngest.createFunction(
         .update({ status: "running", current_stage: "Understanding the request" })
         .eq("id", runId)
         .eq("status", "pending")
-        .select("id, objective, created_by_email")
+        .select("id, objective, created_by_email, tool_limits")
         .single();
 
       if (error || !data) return null; // already claimed by another delivery — no-op
-      return data as { id: string; objective: string; created_by_email: string };
+      return data as { id: string; objective: string; created_by_email: string; tool_limits: unknown };
     });
 
     if (!claimed) return { skipped: true };
 
     try {
-      const { totalCostUsd } = await step.run("run-agent", () => runSearch(runId, claimed.objective));
+      // Every cap for this search comes from the run's own snapshot — a
+      // malformed one fails the run here, before anything is spent.
+      const limits: ToolLimits = ToolLimitsSchema.parse(claimed.tool_limits);
+
+      const { totalCostUsd } = await step.run("run-agent", () => runSearch(runId, claimed.objective, limits));
 
       const qualifiedCount = await step.run("count-qualified", async () => {
         const { count } = await db
@@ -48,7 +53,7 @@ export const searchPipeline = inngest.createFunction(
       });
 
       const shortfallNote =
-        qualifiedCount < 10
+        qualifiedCount < limits.max_qualified_leads
           ? `Found ${qualifiedCount} good fits — Hound searched again but ran out of new companies to check within the discovery budget.`
           : null;
 

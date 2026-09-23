@@ -3,7 +3,15 @@ import { requireSessionUser } from "@/lib/supabase/auth";
 import { supabaseService } from "@/lib/supabase/service";
 import { inngest } from "@/lib/inngest/client";
 import { CreateRunSchema } from "@/lib/schemas";
-import { MAX_CANDIDATES, MAX_SCRAPES, MAX_QUALIFIED_LEADS, MAX_AGENT_TURNS } from "@/lib/agent-config";
+import {
+  MAX_CANDIDATES,
+  FIRST_PASS_CANDIDATES,
+  MAX_DISCOVERY_PASSES,
+  MAX_SCRAPES,
+  MAX_QUALIFIED_LEADS,
+  MAX_AGENT_TURNS,
+} from "@/lib/agent-config";
+import type { ToolLimits } from "@/lib/schemas";
 
 /**
  * Creates a search. Idempotent on `idempotency_key` (design.md Section 10)
@@ -47,10 +55,12 @@ export async function POST(request: Request) {
       idempotency_key: parsed.data.idempotency_key,
       tool_limits: {
         max_candidates: MAX_CANDIDATES,
+        first_pass_candidates: FIRST_PASS_CANDIDATES,
+        max_discovery_passes: MAX_DISCOVERY_PASSES,
         max_scrapes: MAX_SCRAPES,
         max_qualified_leads: MAX_QUALIFIED_LEADS,
         max_agent_turns: MAX_AGENT_TURNS,
-      },
+      } satisfies ToolLimits,
     })
     .select("id")
     .single();

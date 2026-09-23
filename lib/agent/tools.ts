@@ -5,8 +5,7 @@ import { scrapeWebsite } from "../tools/scrape-website";
 import { saveLead, qualifiedLeadCountForRun } from "../tools/save-lead";
 import { logToolCall } from "../tools/log-tool-call";
 import { setCurrentStage } from "../tools/stage";
-import { QualificationResultSchema } from "../schemas";
-import { MAX_QUALIFIED_LEADS } from "../agent-config";
+import { QualificationResultSchema, type ToolLimits } from "../schemas";
 import { createFormatRetryTracker } from "./format-retry";
 
 /**
@@ -27,27 +26,27 @@ function jsonResult(value: unknown) {
 }
 
 /**
- * Builds the four custom tools bound to one run. Every cap in
+ * Builds the custom tools bound to one run. Every cap in
  * artifact/design.md is enforced *here*, in the tool implementation, not
- * left to the agent's judgment — the agent's requested values are always
- * clamped/checked against Supabase before any paid work happens.
+ * left to the agent's judgment — limits come from the run's own
+ * `tool_limits` snapshot, and budget is reserved in Supabase before any
+ * paid work happens. The agent never supplies a count.
  */
-export function buildHoundTools(runId: string) {
+export function buildHoundTools(runId: string, limits: ToolLimits) {
   const formatRetry = createFormatRetryTracker();
 
   const discover_companies = tool(
     "discover_companies",
-    "Find candidate companies via LinkedIn company search (Apify), within the run's remaining discovery budget. The requested count is clamped to what's actually left — do not assume you'll get exactly what you ask for.",
+    `Find candidate companies via LinkedIn company search (Apify). You get ${limits.max_discovery_passes} discovery passes per search: the first returns up to ${limits.first_pass_candidates} companies, the second (a re-search with a different query) returns whatever remains of the ${limits.max_candidates}-company budget. The tool decides how many companies to pull — you only supply the query. Further calls return nothing, as do calls after the qualified-lead target is reached.`,
     {
       searchQueries: z.array(z.string()).describe("Search phrases derived from the refined ICP"),
       industries: z.array(z.string()).optional(),
       locations: z.array(z.string()).optional(),
       companySizes: z.array(z.string()).optional(),
-      requestedCount: z.number().int().positive(),
     },
     async (args) => {
       await setCurrentStage(runId, "Finding companies");
-      return jsonResult(await discoverCompanies(runId, args));
+      return jsonResult(await discoverCompanies(runId, limits, args));
     }
   );
 
@@ -60,7 +59,7 @@ export function buildHoundTools(runId: string) {
     },
     async (args) => {
       await setCurrentStage(runId, "Checking websites");
-      return jsonResult(await scrapeWebsite(runId, args.companyDomain, args.url));
+      return jsonResult(await scrapeWebsite(runId, limits, args.companyDomain, args.url));
     }
   );
 
@@ -150,13 +149,13 @@ export function buildHoundTools(runId: string) {
 
       if (parsedQualification.data.qualification_status === "qualified") {
         const qualifiedSoFar = await qualifiedLeadCountForRun(runId);
-        if (qualifiedSoFar >= MAX_QUALIFIED_LEADS) {
+        if (qualifiedSoFar >= limits.max_qualified_leads) {
           await logToolCall({
             runId,
             toolName: "save_lead",
             purpose: `Save qualification for ${args.qualification.company_domain}`,
             inputSummary: args,
-            resultSummary: { skipped: true, reason: "MAX_QUALIFIED_LEADS already reached" },
+            resultSummary: { skipped: true, reason: "qualified-lead target already reached" },
             status: "success",
           });
           return jsonResult({ ok: false, reason: "qualified lead target already reached" });

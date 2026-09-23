@@ -54,17 +54,6 @@ export async function leadExists(runId: string, companyDomain: string): Promise<
   return (count ?? 0) > 0;
 }
 
-/** Current candidate count for a run — checked against Supabase, not an in-memory counter (design.md Section 3/4). */
-export async function leadCountForRun(runId: string): Promise<number> {
-  const { count, error } = await supabaseService()
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .eq("run_id", runId);
-
-  if (error) throw new Error(`leadCountForRun failed: ${error.message}`);
-  return count ?? 0;
-}
-
 export async function qualifiedLeadCountForRun(runId: string): Promise<number> {
   const { count, error } = await supabaseService()
     .from("leads")

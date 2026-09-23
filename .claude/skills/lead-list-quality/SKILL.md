@@ -31,6 +31,13 @@ Use this skill to check the quality of the lead list as the search progresses an
 
 ## Pass standard, and what to do on a shortfall
 
-The goal is the run's configured number of qualified companies passing the checks above. If the candidate pool from the first discovery pass doesn't reach that number, search again once more within the run's remaining discovery budget. If it still falls short after that, stop and return what you have — do not loop indefinitely, and do not pad the list with weak `needs_review`-quality leads just to hit the number.
+The goal is the run's configured number of qualified companies passing the checks above.
+
+Discovery is two fixed passes, and the tool — not you — decides how many companies each pass returns:
+
+1. **First pass** — returns up to the run's first-pass size. Work through those candidates first.
+2. **Re-search** — only if the first pass didn't reach the target. Use a genuinely different, rephrased query (a synonym for the niche, or the problem the product solves), not the same one again — repeating a query buys the same companies twice. It returns whatever remains of the discovery budget.
+
+Once the target is reached, stop: don't scrape the remaining candidates and don't re-search — the tools will refuse anyway. If it still falls short after the re-search, stop and return what you have — there is no third pass, and do not pad the list with weak `needs_review`-quality leads just to hit the number.
 
 When you stop short, write a plain-language explanation of why (e.g. "found 7 qualified leads — searched again but ran out of new companies matching the criteria within the discovery budget"). This is what a non-technical user sees on the search's status, so write it as you would explain it to them directly, not as an internal log line.

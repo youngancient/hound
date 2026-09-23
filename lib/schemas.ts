@@ -27,6 +27,8 @@ export type RefinedIcp = z.infer<typeof RefinedIcpSchema>;
 
 export const ToolLimitsSchema = z.object({
   max_candidates: z.number().int().positive(),
+  first_pass_candidates: z.number().int().positive(),
+  max_discovery_passes: z.number().int().positive(),
   max_scrapes: z.number().int().positive(),
   max_qualified_leads: z.number().int().positive(),
   max_agent_turns: z.number().int().positive(),

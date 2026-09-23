@@ -5,7 +5,19 @@
 
 export const MODEL = "claude-sonnet-5";
 
+/**
+ * Defaults snapshotted into each run's `tool_limits` at creation. The
+ * tools and the budget functions in 0001_init.sql enforce the run's own
+ * snapshot, never these constants directly, so changing a value here only
+ * affects new searches.
+ *
+ * Discovery is two fixed passes: the first pulls up to
+ * FIRST_PASS_CANDIDATES, the single re-search gets whatever remains of
+ * MAX_CANDIDATES (see the lead-list-quality skill).
+ */
 export const MAX_CANDIDATES = 30;
+export const FIRST_PASS_CANDIDATES = 20;
+export const MAX_DISCOVERY_PASSES = 2;
 export const MAX_SCRAPES = 30;
 export const MAX_QUALIFIED_LEADS = 10;
 export const MAX_AGENT_TURNS = 50;

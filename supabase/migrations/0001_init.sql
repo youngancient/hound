@@ -19,6 +19,12 @@ create table if not exists runs (
   created_by        uuid not null references auth.users (id),
   created_by_email  text not null,
   claude_cost_usd   numeric,
+  -- Budget consumption counters, reserved atomically by the functions
+  -- below *before* any paid call — never derived by counting `leads` rows,
+  -- which only exist after a company is saved (design.md Section 3/4).
+  candidates_used        int not null default 0 check (candidates_used >= 0),
+  scrapes_used           int not null default 0 check (scrapes_used >= 0),
+  discovery_passes_used  int not null default 0 check (discovery_passes_used >= 0),
   idempotency_key   uuid not null unique,
   created_at        timestamptz not null default now(),
   completed_at      timestamptz
@@ -66,6 +72,98 @@ create table if not exists tool_calls (
 
 create index if not exists tool_calls_run_id_idx on tool_calls (run_id);
 create index if not exists tool_calls_lead_id_idx on tool_calls (lead_id);
+
+-- Budget reservation — design.md Section 3/4. Limits are read from the
+-- run's own `tool_limits` snapshot, and each function takes a row lock
+-- (or is a single conditional UPDATE), so parallel tool calls or a
+-- retried Inngest step can't both spend the same remaining budget.
+
+-- One discovery pass: the first pass gets min(first_pass_candidates,
+-- remaining), the re-search gets whatever remains, and nothing beyond
+-- max_discovery_passes. `reason` says why `granted` is 0.
+create or replace function reserve_discovery(p_run_id uuid)
+returns table (granted int, pass_number int, reason text)
+language plpgsql
+set search_path = public
+as $$
+declare
+  r          runs%rowtype;
+  v_max      int;
+  v_first    int;
+  v_passes   int;
+  v_remaining int;
+  v_grant    int;
+begin
+  select * into r from runs where id = p_run_id for update;
+  if not found then
+    raise exception 'run % not found', p_run_id;
+  end if;
+
+  v_max    := (r.tool_limits ->> 'max_candidates')::int;
+  v_first  := (r.tool_limits ->> 'first_pass_candidates')::int;
+  v_passes := (r.tool_limits ->> 'max_discovery_passes')::int;
+  if v_max is null or v_first is null or v_passes is null then
+    raise exception 'run % has incomplete tool_limits', p_run_id;
+  end if;
+
+  if r.discovery_passes_used >= v_passes then
+    return query select 0, r.discovery_passes_used, 'discovery passes exhausted'::text;
+    return;
+  end if;
+
+  v_remaining := greatest(v_max - r.candidates_used, 0);
+  if v_remaining = 0 then
+    return query select 0, r.discovery_passes_used, 'candidate budget exhausted'::text;
+    return;
+  end if;
+
+  v_grant := case when r.discovery_passes_used = 0 then least(v_first, v_remaining) else v_remaining end;
+
+  update runs
+     set candidates_used = candidates_used + v_grant,
+         discovery_passes_used = discovery_passes_used + 1
+   where id = p_run_id;
+
+  return query select v_grant, r.discovery_passes_used + 1, 'ok'::text;
+end;
+$$;
+
+-- Returns unused candidate budget (the actor returned fewer results than
+-- reserved, or the call failed outright). The pass itself stays spent.
+create or replace function release_candidates(p_run_id uuid, p_count int)
+returns void
+language sql
+set search_path = public
+as $$
+  update runs
+     set candidates_used = greatest(candidates_used - greatest(p_count, 0), 0)
+   where id = p_run_id;
+$$;
+
+-- One scrape. True if granted, false if max_scrapes is already reached.
+create or replace function reserve_scrape(p_run_id uuid)
+returns boolean
+language sql
+set search_path = public
+as $$
+  with updated as (
+    update runs
+       set scrapes_used = scrapes_used + 1
+     where id = p_run_id
+       and scrapes_used < (tool_limits ->> 'max_scrapes')::int
+    returning 1
+  )
+  select exists (select 1 from updated);
+$$;
+
+-- Budget functions are server-only: callable by the service-role key,
+-- never by a signed-in browser client through the REST API.
+revoke execute on function reserve_discovery(uuid) from public, anon, authenticated;
+revoke execute on function release_candidates(uuid, int) from public, anon, authenticated;
+revoke execute on function reserve_scrape(uuid) from public, anon, authenticated;
+grant execute on function reserve_discovery(uuid) to service_role;
+grant execute on function release_candidates(uuid, int) to service_role;
+grant execute on function reserve_scrape(uuid) to service_role;
 
 -- Row Level Security — design.md Section 2 & 11: shared workspace, every
 -- authenticated user reads everything; only the service-role key (used by
