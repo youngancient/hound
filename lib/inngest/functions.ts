@@ -43,7 +43,9 @@ export const searchPipeline = inngest.createFunction(
 
       // Throws on a broken session (see runSearch), which Inngest retries
       // once as a fresh session before the catch below marks it failed.
-      const { totalCostUsd, end } = await step.run("run-agent", () => runSearch(runId, claimed.objective, limits));
+      const { totalCostUsd, end, uncheckedLeft } = await step.run("run-agent", () =>
+        runSearch(runId, claimed.objective, limits)
+      );
 
       // Already marked declined (with its reason) by the cant_search_this
       // tool. Nothing was searched, so no completion email either.
@@ -58,7 +60,7 @@ export const searchPipeline = inngest.createFunction(
         return count ?? 0;
       });
 
-      const shortfallNote = explainShortfall(qualifiedCount, limits.max_qualified_leads, end);
+      const shortfallNote = explainShortfall(qualifiedCount, limits.max_qualified_leads, end, uncheckedLeft);
 
       await step.run("finalize-success", () =>
         db
@@ -110,7 +112,7 @@ export const searchPipeline = inngest.createFunction(
 );
 
 const FAILURE_NOTE =
-  "Something went wrong and Hound couldn't finish this search. Any good fits it found are listed below, and you can run the search again.";
+  "Something went wrong and Hound couldn't finish this search. Any leads it found are listed below, and you can run the search again.";
 
 /**
  * The user-facing reason a completed search came up short. Must match
@@ -118,9 +120,12 @@ const FAILURE_NOTE =
  * out of companies", and a user deciding whether a market is worth
  * pursuing reads this literally.
  */
-function explainShortfall(qualifiedCount: number, target: number, end: SessionEnd): string | null {
+function explainShortfall(qualifiedCount: number, target: number, end: SessionEnd, uncheckedLeft: number): string | null {
   if (qualifiedCount >= target) return null;
-  const found = `Found ${qualifiedCount} good fit${qualifiedCount === 1 ? "" : "s"}`;
+  const found = `Found ${qualifiedCount} lead${qualifiedCount === 1 ? "" : "s"}`;
+  if (uncheckedLeft > 0) {
+    return `${found}. Hound stopped before checking every company it found (${uncheckedLeft} ${uncheckedLeft === 1 ? "wasn't" : "weren't"} checked).`;
+  }
   if (end === "limit_reached") {
     return `${found}. Hound hit its limit for this search before it could check every company.`;
   }

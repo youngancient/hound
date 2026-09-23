@@ -7,6 +7,7 @@ import { logToolCall } from "../tools/log-tool-call";
 import { setCurrentStage } from "../tools/stage";
 import { QualificationResultSchema, RefinedIcpSchema, type ToolLimits } from "../schemas";
 import { saveRefinedIcp, declineSearch } from "../tools/icp";
+import { getProgress } from "../tools/progress";
 import { createFormatRetryTracker } from "./format-retry";
 
 /**
@@ -35,6 +36,13 @@ function jsonResult(value: unknown) {
  */
 export function buildHoundTools(runId: string, limits: ToolLimits) {
   const formatRetry = createFormatRetryTracker();
+
+  const get_progress = tool(
+    "get_progress",
+    "Call this first, before anything else. Returns what this search has already done: whether the ICP is saved (and what it is), how many companies have been checked, how many qualified leads there are against the target, companies already discovered but not yet checked, and the discovery passes, company budget and scrapes left. On a fresh search it's all empty. If it shows progress, the search is resuming: don't redo finished work.",
+    {},
+    async () => jsonResult(await getProgress(runId, limits))
+  );
 
   // Loose at the SDK layer, strict inside the handler (same reasoning as
   // EmailStepInputSchema): a validation miss comes back to the agent as a
@@ -144,7 +152,7 @@ export function buildHoundTools(runId: string, limits: ToolLimits) {
 
   const save_lead = tool(
     "save_lead",
-    "Save a qualification result for a company. A qualified company must include its outreach draft in the same call; not_qualified and needs_review companies are saved without one. Upserts on company domain — safe to call again for the same company. Refuses once the run has reached its qualified-lead target.",
+    "Save a qualification result for a company. A qualified company must include at least one fit reason, one source URL, a source summary and its outreach draft in the same call; not_qualified and needs_review companies are saved without one. Upserts on company domain — safe to call again for the same company. Refuses once the run has reached its qualified-lead target.",
     {
       qualification: z.object({
         company_name: z.string(),
@@ -165,7 +173,7 @@ export function buildHoundTools(runId: string, limits: ToolLimits) {
         .optional(),
     },
     async (args) => {
-      await setCurrentStage(runId, args.outreach ? "Writing outreach" : "Finding good fits");
+      await setCurrentStage(runId, args.outreach ? "Writing outreach" : "Finding leads");
       const parsedQualification = QualificationResultSchema.safeParse(args.qualification);
       if (!parsedQualification.success) {
         await logToolCall({
@@ -180,21 +188,33 @@ export function buildHoundTools(runId: string, limits: ToolLimits) {
         return jsonResult({ ok: false, error: "qualification failed schema validation" });
       }
 
-      // The PRD requires every qualified lead to carry its 3-step sequence
-      // and LinkedIn message — enforced here, not left to the skill.
-      if (parsedQualification.data.qualification_status === "qualified" && !args.outreach) {
-        const issue =
-          "A qualified lead must be saved together with its outreach (3-step email sequence and LinkedIn message) — draft it with the outbound-copywriting skill and call save_lead again.";
-        await logToolCall({
-          runId,
-          toolName: "save_lead",
-          purpose: `Save qualification for ${args.qualification.company_domain}`,
-          inputSummary: { company_domain: args.qualification.company_domain, status: "qualified" },
-          resultSummary: { retryRequested: [issue] },
-          status: "error",
-          errorMessage: issue,
-        });
-        return jsonResult({ ok: false, retry: true, issues: [issue] });
+      // A qualified lead counts toward the target, so it must be complete:
+      // reasoning, source context (lead-list-quality guide) and its 3-step
+      // sequence plus LinkedIn message (PRD). Enforced here, not left to the skills.
+      if (parsedQualification.data.qualification_status === "qualified") {
+        const q = parsedQualification.data;
+        const issues: string[] = [];
+        if (!q.fit_reasons.some((r) => r.trim())) issues.push("Add at least one fit reason explaining why this company is a good fit.");
+        if (!q.source_urls.some((u) => u.trim())) issues.push("Add at least one source URL the qualification is based on.");
+        if (!q.source_summary.trim()) issues.push("Add a source summary of what the sources say about the company.");
+        if (!args.outreach) {
+          issues.push(
+            "Include the outreach (3-step email sequence and LinkedIn message), drafted with the outbound-copywriting skill."
+          );
+        }
+
+        if (issues.length > 0) {
+          await logToolCall({
+            runId,
+            toolName: "save_lead",
+            purpose: `Save qualification for ${q.company_domain}`,
+            inputSummary: { company_domain: q.company_domain, status: "qualified" },
+            resultSummary: { retryRequested: issues },
+            status: "error",
+            errorMessage: issues.join(" "),
+          });
+          return jsonResult({ ok: false, retry: true, issues: ["A qualified lead must be complete before it's saved.", ...issues] });
+        }
       }
 
       // Char-limit format-retry (design.md Section 5) — checked manually,
@@ -294,12 +314,13 @@ export function buildHoundTools(runId: string, limits: ToolLimits) {
   const server = createSdkMcpServer({
     name: "hound-tools",
     version: "1.0.0",
-    tools: [save_icp, cant_search_this, discover_companies, scrape_website, save_lead],
+    tools: [get_progress, save_icp, cant_search_this, discover_companies, scrape_website, save_lead],
   });
 
   return {
     server,
     allowedToolNames: [
+      "mcp__hound-tools__get_progress",
       "mcp__hound-tools__save_icp",
       "mcp__hound-tools__cant_search_this",
       "mcp__hound-tools__discover_companies",

@@ -33,8 +33,8 @@ When you reject for this reason, say it plainly in `concerns` — e.g. "IT consu
 
 ### Size and location
 
-- Size: LinkedIn's employee range (`employeeCountRange`) and member count (`employeeCount`) often disagree, and neither is authoritative. Treat both as signals; prefer the company's own evidence (team page, "we're a team of 40") when there is any, and use `needs_review` rather than guessing when the ICP's headcount is a hard filter and the evidence conflicts.
-- Location: the ICP's `country_codes` are already enforced on headquarters before you see a company; a city or region in `geography` is yours to check from the evidence.
+- Size: LinkedIn's employee range (`employeeCountRange`) and member count (`linkedinMemberCount`) often disagree, and neither is authoritative. Treat both as signals; prefer the company's own evidence (team page, "we're a team of 40") when there is any, and use `needs_review` rather than guessing when the ICP's headcount is a hard filter and the evidence conflicts.
+- Location: the ICP's `country_codes` are enforced on headquarters before you see a company, but only when LinkedIn reports a headquarters country. If a company's headquarters country is missing, check its location from the evidence yourself. A city or region in `geography` is always yours to check.
 
 ## Output format
 

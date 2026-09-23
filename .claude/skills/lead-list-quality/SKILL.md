@@ -1,6 +1,6 @@
 ---
 name: lead-list-quality
-description: Use when deciding whether the search has found enough qualified leads to stop, or needs another discovery pass — and when writing the plain-language explanation for a shortfall.
+description: Use when deciding whether the search has found enough qualified leads to stop, or needs another discovery pass.
 ---
 
 # Lead-List Quality
@@ -40,4 +40,4 @@ Discovery is two fixed passes, and the tool — not you — decides how many com
 
 Once the target is reached, stop: don't scrape the remaining candidates and don't re-search — the tools will refuse anyway. If it still falls short after the re-search, stop and return what you have — there is no third pass, and do not pad the list with weak `needs_review`-quality leads just to hit the number.
 
-When you stop short, write a plain-language explanation of why (e.g. "found 7 qualified leads — searched again but ran out of new companies matching the criteria within the discovery budget"). This is what a non-technical user sees on the search's status, so write it as you would explain it to them directly, not as an internal log line.
+When you stop short, just stop. You don't need to write an explanation: Hound writes the one the user sees from what actually happened (it ran out of new companies to check, or it hit its limit for the search).

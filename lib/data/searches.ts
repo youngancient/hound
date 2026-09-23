@@ -1,6 +1,42 @@
 import "server-only";
 import { supabaseService } from "../supabase/service";
 import { RefinedIcpSchema } from "../schemas";
+import { checkContinue, type ContinueCheck } from "./continue";
+import { uncheckedCandidateCount } from "../tools/progress";
+
+/**
+ * found = ruledOut + checked + unchecked, always.
+ * - ruledOut: bought from LinkedIn but excluded by code before checking
+ *   (no usable website, size or HQ country outside the request). Expected.
+ * - checked: companies Hound dealt with (assessed, or at least scraped).
+ * - unchecked: saved companies nobody got to. The same count the status
+ *   note uses, so the page never shows two different numbers.
+ * Searches from before candidates were saved can't split ruled-out from
+ * unchecked, so everything not assessed counts as unchecked there.
+ */
+export type SearchFunnelCounts = { found: number; ruledOut: number; checked: number; unchecked: number; leads: number };
+
+async function funnelFor(runId: string, found: number, assessed: number, leads: number): Promise<SearchFunnelCounts> {
+  const { count, error } = await supabaseService()
+    .from("candidates")
+    .select("id", { count: "exact", head: true })
+    .eq("run_id", runId)
+    .is("ruled_out_reason", null);
+  if (error) throw new Error(`Loading search funnel failed: ${error.message}`);
+  const saved = count ?? 0;
+
+  if (saved === 0) {
+    return { found, ruledOut: 0, checked: assessed, unchecked: Math.max(0, found - assessed), leads };
+  }
+  const unchecked = await uncheckedCandidateCount(runId);
+  return {
+    found,
+    ruledOut: Math.max(0, found - saved),
+    checked: Math.max(assessed, saved - unchecked),
+    unchecked,
+    leads,
+  };
+}
 
 /**
  * Run cost = runs.claude_cost_usd + SUM(tool_calls.cost_usd) — computed at
@@ -25,7 +61,7 @@ export async function listSearches() {
   // a database problem must never look like "No searches yet".
   const { data: runs, error } = await db
     .from("runs")
-    .select("id, objective, status, status_note, current_stage, claude_cost_usd, created_at")
+    .select("id, objective, status, status_note, current_stage, claude_cost_usd, created_by, created_by_email, created_at")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Loading searches failed: ${error.message}`);
@@ -41,7 +77,9 @@ export async function listSearches() {
   if (leadsError) throw new Error(`Loading lead counts failed: ${leadsError.message}`);
 
   const qualifiedByRun: Record<string, number> = {};
+  const checkedByRun: Record<string, number> = {};
   for (const lead of leadCounts ?? []) {
+    checkedByRun[lead.run_id] = (checkedByRun[lead.run_id] ?? 0) + 1;
     if (lead.qualification_status === "qualified") {
       qualifiedByRun[lead.run_id] = (qualifiedByRun[lead.run_id] ?? 0) + 1;
     }
@@ -50,6 +88,8 @@ export async function listSearches() {
   return runs.map((run) => ({
     ...run,
     qualifiedCount: qualifiedByRun[run.id] ?? 0,
+    // Companies Hound assessed and saved (any verdict).
+    checkedCount: checkedByRun[run.id] ?? 0,
     totalCostUsd: (run.claude_cost_usd ?? 0) + (toolCosts[run.id] ?? 0),
   }));
 }
@@ -74,17 +114,31 @@ export async function getSearch(runId: string) {
   const toolCosts = await costForRuns([runId]);
 
   const icp = RefinedIcpSchema.safeParse(run.refined_icp);
+  const continueCheck: ContinueCheck | null = run.status === "failed" ? await checkContinue(runId) : null;
+  const allLeads = leads ?? [];
+  const funnel = await funnelFor(
+    runId,
+    Number(run.candidates_used ?? 0),
+    allLeads.length,
+    allLeads.filter((l) => l.qualification_status === "qualified").length
+  );
 
   return {
     run: { ...run, totalCostUsd: (run.claude_cost_usd ?? 0) + (toolCosts[runId] ?? 0) },
     icp: icp.success ? icp.data : null,
+    continueCheck,
+    funnel,
     leads: leads ?? [],
   };
 }
 
 export async function getLead(leadId: string) {
   const db = supabaseService();
-  const { data: lead, error } = await db.from("leads").select("*").eq("id", leadId).maybeSingle();
+  const { data: lead, error } = await db
+    .from("leads")
+    .select("*, runs!inner(created_by, created_by_email)")
+    .eq("id", leadId)
+    .maybeSingle();
   if (error) throw new Error(`Loading lead failed: ${error.message}`);
   if (!lead) return null;
 
@@ -95,5 +149,6 @@ export async function getLead(leadId: string) {
     .order("created_at", { ascending: true });
   if (callsError) throw new Error(`Loading lead activity failed: ${callsError.message}`);
 
-  return { lead, toolCalls: toolCalls ?? [] };
+  const run = (Array.isArray(lead.runs) ? lead.runs[0] : lead.runs) as { created_by: string; created_by_email: string };
+  return { lead, owner: { id: run.created_by, email: run.created_by_email }, toolCalls: toolCalls ?? [] };
 }

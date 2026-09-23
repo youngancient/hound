@@ -5,8 +5,10 @@ import { logToolCall } from "./log-tool-call";
 import { qualifiedLeadCountForRun } from "./save-lead";
 import { reserveDiscovery, releaseCandidates } from "./budget";
 import { getRefinedIcp } from "./icp";
+import { uncheckedCandidateCount } from "./progress";
 import {
   buildActorInputs,
+  candidateKey,
   mapCompany,
   normalizeQuery,
   screenCandidates,
@@ -65,6 +67,18 @@ export async function discoverCompanies(
     return skip(runId, searchQuery, "this query was already used in this search — rephrase it for the re-search");
   }
 
+  // The re-search is for when the first batch didn't reach the target, so
+  // it waits until that batch has been checked. Otherwise it spends budget
+  // on new companies while paid-for ones sit unchecked.
+  const unchecked = await uncheckedCandidateCount(runId);
+  if (unchecked > 0) {
+    return skip(
+      runId,
+      searchQuery,
+      `check the ${unchecked} ${unchecked === 1 ? "company" : "companies"} already found first (call get_progress for the list); search again only if they don't reach the target`
+    );
+  }
+
   const reservation = await reserveDiscovery(runId);
   if (reservation.granted === 0) {
     return skip(runId, searchQuery, reservation.reason);
@@ -118,6 +132,10 @@ export async function discoverCompanies(
   const droppedBeforeScraping: Partial<Record<DropReason, number>> = {};
   for (const d of dropped) droppedBeforeScraping[d.reason] = (droppedBeforeScraping[d.reason] ?? 0) + 1;
 
+  // Checkpoint: a retry or a continued search picks these up rather than
+  // losing companies that were found (and paid for) but not yet checked.
+  await saveCandidates(runId, kept, dropped);
+
   await logToolCall({
     runId,
     toolName: "discover_companies",
@@ -126,7 +144,7 @@ export async function discoverCompanies(
     resultSummary: {
       returned: items.length,
       kept: kept.length,
-      dropped,
+      dropped: dropped.map(({ name, reason }) => ({ name, reason })),
       attempts,
       usedFallback: usedInput === fallback,
     },
@@ -147,6 +165,38 @@ async function runWithEmptyRetry(input: ActorInput, attempts: Attempt[]): Promis
   const second = await runCompanySearch(input);
   attempts.push({ filtered, count: second.length });
   return second;
+}
+
+/** Best-effort: failing to checkpoint must not throw away results already bought. */
+async function saveCandidates(
+  runId: string,
+  kept: CompanyCandidate[],
+  dropped: Array<{ reason: DropReason; company: CompanyCandidate }>
+): Promise<void> {
+  const rows = [
+    ...kept.map((c) => ({ run_id: runId, domain: candidateKey(c), name: c.name, data: c, ruled_out_reason: null })),
+    // Ruled out before checking, kept so "All companies" can list them with the reason.
+    ...dropped.map((d) => ({
+      run_id: runId,
+      domain: candidateKey(d.company),
+      name: d.company.name,
+      data: d.company,
+      ruled_out_reason: d.reason,
+    })),
+  ];
+  if (rows.length === 0) return;
+
+  const db = supabaseService();
+  const { error } = await db.from("candidates").upsert(rows, { onConflict: "run_id,domain", ignoreDuplicates: true });
+  if (!error) return;
+
+  // Before migration 0003 there's no ruled_out_reason column: still save the
+  // companies that passed the checks, since resuming depends on them.
+  console.error("saveCandidates failed, retrying without ruled-out companies:", error.message);
+  const keptOnly = kept.map((c) => ({ run_id: runId, domain: candidateKey(c), name: c.name, data: c }));
+  if (keptOnly.length === 0) return;
+  const retry = await db.from("candidates").upsert(keptOnly, { onConflict: "run_id,domain", ignoreDuplicates: true });
+  if (retry.error) console.error("saveCandidates failed:", retry.error.message);
 }
 
 async function queryAlreadyUsed(runId: string, normalizedQuery: string): Promise<boolean> {

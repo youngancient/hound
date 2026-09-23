@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSessionUser } from "@/lib/supabase/auth";
 import { supabaseService } from "@/lib/supabase/service";
 import { LeadEditSchema } from "@/lib/schemas";
+import { getLeadOwner, NOT_OWNER_MESSAGE } from "@/lib/data/ownership";
 
 /**
  * Human edit of outreach copy. Design.md Section 1/11: the client's own
@@ -18,6 +19,11 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 
   const { id } = await ctx.params;
+
+  const owner = await getLeadOwner(id);
+  if (!owner) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+  if (owner.ownerId !== user.id) return NextResponse.json({ error: NOT_OWNER_MESSAGE }, { status: 403 });
+
   const body = await request.json().catch(() => null);
   const parsed = LeadEditSchema.safeParse(body);
   if (!parsed.success) {

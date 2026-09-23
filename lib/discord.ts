@@ -6,14 +6,16 @@ import "server-only";
  * own failure handling — a Discord outage or missing config must never
  * fail a search. See artifact/design.md Section 8.
  */
-export function postSearchFailure(params: { runId: string; objective: string; error: string }): void {
+export function postSearchFailure(params: { runId: string; objective: string; error: string }): Promise<void> {
   const botToken = process.env.DISCORD_BOT_TOKEN;
   const channelId = process.env.DISCORD_CHANNEL_ID;
-  if (!botToken || !channelId) return;
+  if (!botToken || !channelId) return Promise.resolve();
 
   const appUrl = process.env.APP_URL ?? "";
 
-  fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+  // Returned so callers can wait for delivery (Inngest steps, after()); it
+  // never rejects, so a Discord problem can't fail anything.
+  return fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bot ${botToken}`,

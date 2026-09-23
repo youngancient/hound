@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { CopyButton } from "./CopyButton";
 import { Spinner } from "./Spinner";
+import { SESSION_ENDED_MESSAGE, loginUrlFor } from "@/lib/session";
 import { EMAIL_BODY_MAX_CHARS, EMAIL_SUBJECT_MAX_CHARS, LINKEDIN_MESSAGE_MAX_CHARS } from "@/lib/agent-config";
 
 type EmailStep = { subject: string; body: string; personalization_note: string };
@@ -32,13 +33,20 @@ export function OutreachEditor({
   leadId,
   initialSequence,
   initialLinkedinMessage,
-  editedBy,
+  initialEditedLabel,
+  readOnly,
+  ownerEmail,
 }: {
   leadId: string;
   initialSequence: Sequence;
   initialLinkedinMessage: string;
-  editedBy: string | null;
+  /** "Edited by you" / "Edited by {email}", or null if never edited. */
+  initialEditedLabel: string | null;
+  /** Viewing someone else's search: read and copy only. */
+  readOnly: boolean;
+  ownerEmail: string;
 }) {
+  const [editedLabel, setEditedLabel] = useState(initialEditedLabel);
   const [sequence, setSequence] = useState<Sequence>(initialSequence);
   const [linkedinMessage, setLinkedinMessage] = useState(initialLinkedinMessage);
   const [status, setStatus] = useState<Record<SectionKey, SaveStatus>>({
@@ -107,9 +115,19 @@ export function OutreachEditor({
         // Lets the save finish if the blur came from clicking a link away.
         keepalive: true,
       });
+      if (res.status === 403) {
+        setSections(changed, { kind: "error", message: "Only the person who started this search can edit it." });
+        return;
+      }
+      if (res.status === 401) {
+        // Not redirected automatically: that would throw away the edit.
+        setSections(changed, { kind: "error", message: "Not saved. You've been logged out, so log in again in another tab, then try again." });
+        return;
+      }
       if (!res.ok) throw new Error(String(res.status));
       setSaved(snapshot);
       setSections(changed, { kind: "saved" });
+      setEditedLabel("Edited by you");
     } catch {
       setSections(changed, { kind: "error", message: "Not saved." });
     }
@@ -123,9 +141,15 @@ export function OutreachEditor({
     });
   }
 
+  if (readOnly) {
+    return (
+      <ReadOnlyOutreach sequence={sequence} linkedinMessage={linkedinMessage} editedLabel={editedLabel} ownerEmail={ownerEmail} />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      {editedBy && <p className="text-xs text-ash">Edited by a teammate</p>}
+      {editedLabel && <p className="text-xs text-ash">{editedLabel}</p>}
 
       {EMAIL_KEYS.map((key, index) => (
         <OutreachSection
@@ -144,6 +168,7 @@ export function OutreachEditor({
             }));
             setSequence((prev) => prev.map((s, i) => (i === index ? step : s)) as Sequence);
             setSections([key], { kind: "saved" });
+            setEditedLabel("Edited by you");
           }}
         >
           <input
@@ -178,17 +203,60 @@ export function OutreachEditor({
           setSaved((prev) => ({ ...prev, linkedinMessage: content as string }));
           setLinkedinMessage(content as string);
           setSections(["linkedin_message"], { kind: "saved" });
+          setEditedLabel("Edited by you");
         }}
       >
         <textarea
           value={linkedinMessage}
           onChange={(e) => setLinkedinMessage(e.target.value)}
           onBlur={save}
-          rows={3}
+          rows={4}
           aria-label="LinkedIn message text"
           className="rounded-sm border border-rule bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-accent"
         />
       </OutreachSection>
+    </div>
+  );
+}
+
+/** Someone else's search: the drafts as text, with Copy, and who can change them. */
+function ReadOnlyOutreach({
+  sequence,
+  linkedinMessage,
+  editedLabel,
+  ownerEmail,
+}: {
+  sequence: Sequence;
+  linkedinMessage: string;
+  editedLabel: string | null;
+  ownerEmail: string;
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      <p className="text-sm text-ash">
+        {ownerEmail} created this search. You can read and copy the outreach, but only they can edit it.
+        {editedLabel ? ` ${editedLabel}.` : ""}
+      </p>
+      {EMAIL_KEYS.map((key, index) => (
+        <div key={key} className="flex flex-col gap-2 rounded-sm border border-rule p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-medium">{SECTION_TITLE[key]}</h3>
+            <CopyButton text={`${sequence[index].subject}\n\n${sequence[index].body}`} />
+          </div>
+          <p className="text-sm font-medium">{sequence[index].subject}</p>
+          <p className="whitespace-pre-line text-sm">{sequence[index].body}</p>
+          {sequence[index].personalization_note && (
+            <p className="text-xs text-ash">Why this angle: {sequence[index].personalization_note}</p>
+          )}
+        </div>
+      ))}
+      <div className="flex flex-col gap-2 rounded-sm border border-rule p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-medium">{SECTION_TITLE.linkedin_message}</h3>
+          <CopyButton text={linkedinMessage} />
+        </div>
+        <p className="whitespace-pre-line text-sm">{linkedinMessage}</p>
+      </div>
     </div>
   );
 }
@@ -218,7 +286,7 @@ function SaveIndicator({ status, onRetry }: { status: SaveStatus; onRetry: () =>
   return (
     <span className="text-xs text-oxblood" role="alert">
       {status.message}{" "}
-      {status.message === "Not saved." && (
+      {status.message.startsWith("Not saved.") && (
         <button type="button" onClick={onRetry} className="cursor-pointer underline">
           Try again
         </button>
@@ -252,19 +320,28 @@ function OutreachSection({
   async function handleRegenerate() {
     if (!feedback.trim()) return;
     setRegenerating(true);
-    const res = await fetch(`/api/leads/${leadId}/regenerate-outreach`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target: section, feedback }),
-    });
-    setRegenerating(false);
-
-    if (!res.ok) {
+    let content: unknown;
+    try {
+      const res = await fetch(`/api/leads/${leadId}/regenerate-outreach`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: section, feedback }),
+      });
+      if (res.status === 401) {
+        toast.error(SESSION_ENDED_MESSAGE, {
+          action: { label: "Log in", onClick: () => window.location.assign(loginUrlFor(window.location.pathname)) },
+        });
+        return;
+      }
+      if (!res.ok) throw new Error(String(res.status));
+      ({ content } = (await res.json()) as { content: unknown });
+    } catch {
       toast.error("We couldn't rewrite that. Please try again.");
       return;
+    } finally {
+      setRegenerating(false);
     }
 
-    const { content } = await res.json();
     onRegenerated(content);
     toast.success("Rewritten. Take a look.");
     setShowFeedback(false);

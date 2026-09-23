@@ -16,6 +16,15 @@ export const SEARCH_STATUS_LABEL: Record<RunStatus, string> = {
   declined: "Needs a clearer request",
 };
 
+/** Always shown with the word itself, never colour alone. */
+export const SEARCH_STATUS_COLOR_VAR: Record<RunStatus, string> = {
+  pending: "var(--accent)",
+  running: "var(--accent)",
+  completed: "var(--moss)",
+  failed: "var(--oxblood)",
+  declined: "var(--ash)",
+};
+
 export const QUALIFICATION_LABEL: Record<QualificationStatus, string> = {
   qualified: "Good fit",
   not_qualified: "Not a fit",
@@ -40,9 +49,9 @@ export function formatConfidence(confidence: number, status: QualificationStatus
   return `Not sure yet (${pct}%)`;
 }
 
-/** "10–100 people", "Up to 100 people", "100+ people", "Any size". */
+/** "10 to 100 people", "Up to 100 people", "100+ people", "Any size". */
 export function formatHeadcount(min: number | null, max: number | null): string {
-  if (min !== null && max !== null) return `${min.toLocaleString()}–${max.toLocaleString()} people`;
+  if (min !== null && max !== null) return `${min.toLocaleString()} to ${max.toLocaleString()} people`;
   if (max !== null) return `Up to ${max.toLocaleString()} people`;
   if (min !== null) return `${min.toLocaleString()}+ people`;
   return "Any size";
@@ -63,7 +72,7 @@ export const PIPELINE_STAGES = [
   "Understanding the request",
   "Finding companies",
   "Checking websites",
-  "Finding good fits",
+  "Finding leads",
   "Writing outreach",
   "Done",
 ] as const;

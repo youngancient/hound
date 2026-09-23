@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildActorInputs,
+  candidateKey,
   companySizeBuckets,
   mapCompany,
   normalizeQuery,
@@ -164,9 +165,18 @@ test("screenCandidates: drops what code can rule out, leaves unknowns to qualifi
     icp
   );
   assert.deepEqual(kept.map((c) => c.name), ["Good", "Unknown size", "Unknown HQ", "Straddles"]);
-  assert.deepEqual(dropped, [
+  assert.deepEqual(dropped.map(({ name, reason }) => ({ name, reason })), [
     { name: "No site", reason: "no usable website" },
     { name: "Too big", reason: "size outside the ICP" },
     { name: "Czech", reason: "headquarters outside the ICP's countries" },
   ]);
+});
+
+test("candidateKey: domain, else LinkedIn URL, else name", () => {
+  assert.equal(candidateKey(candidate({ domain: "acme.com" })), "acme.com");
+  assert.equal(
+    candidateKey(candidate({ domain: null, website: null, linkedinUrl: "https://www.linkedin.com/company/Acme/" })),
+    "linkedin:https://www.linkedin.com/company/acme"
+  );
+  assert.equal(candidateKey(candidate({ domain: null, website: null, linkedinUrl: null, name: " Acme Inc " })), "name:acme inc");
 });

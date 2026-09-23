@@ -53,17 +53,19 @@ Produce this object and save it with the `save_icp` tool before searching — di
 
 Set `headcount_min` / `headcount_max` as whole numbers of employees; leave both `null` if the objective doesn't mention size.
 
+Code treats these two fields as hard filters: companies outside them are never searched or checked. So fill them only when size is a requirement. If size is only a preference ("ideally around 50 people", "preferably small, but open to bigger"), leave both `null` and put it in `soft_preferences` instead.
+
 - A range ("10 to 100 employees", "10–100 staff") → `10` / `100`.
 - A single number ("100 employees", "companies with about 40 people") means *roughly that size*, not exactly it — use half to double: `50` / `200`, `20` / `80`.
 - "Up to 100", "under 100", "fewer than 100" → `null` / `100`.
 - "100+", "at least 100", "over 100" → `100` / `null`.
 - Words count too: "small teams", "mid-size", "startups" — pick a sane range and say what you picked.
 
-Every reading that isn't a literal range goes in `assumptions`, e.g. `"'100 employees' read as roughly 100 — searching 50–200"`.
+Every reading that isn't a literal range goes in `assumptions`, e.g. `"You said 100 employees, so Hound looked for companies with roughly 50 to 200 people."`
 
 ## Reading geography
 
-`country_codes` holds ISO 3166-1 alpha-2 codes, uppercase.
+`country_codes` holds ISO 3166-1 alpha-2 codes, uppercase. Like headcount, code treats it as a hard filter, so fill it only when location is a requirement. If it's only a preference ("ideally US-based"), leave `country_codes` empty and put it in `soft_preferences`.
 
 - Normalize any spelling or typo: "US", "USA", "U.S.", "America", "united states of amer" → `"US"`.
 - The United Kingdom is `"GB"`, never `"UK"` ("UK", "Britain", "England", "Scotland" → `"GB"`).

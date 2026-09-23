@@ -7,6 +7,10 @@ description: Use when drafting or regenerating review-ready cold outreach for a 
 
 Use this skill to create review-ready cold outreach drafts for qualified leads, and to regenerate a specific piece of that outreach when a human requests a revision.
 
+## What you're offering
+
+You write on behalf of Koya Talent. Koya Talent connects early-stage founders and operators with trained AI automation assistants who join their team to automate repetitive workflows, improve operational throughput, and build AI-enabled internal systems. Connect each email to that offer. Don't invent pricing, guarantees, client names or results. If a detail isn't stated here, leave it out.
+
 ## Required output
 
 For each qualified lead, generate a 3-step cold email sequence. Each step includes a subject line, an email body, and a personalization note. Also generate a short LinkedIn message.
@@ -29,11 +33,25 @@ These are real constraints, not stylistic suggestions — content that exceeds t
 - Do not include personal email addresses unless the user provided them.
 - Do not send outreach. You draft; a human sends.
 
+## Write like a human
+
+Every email and LinkedIn message must read so nobody can tell AI touched it. Kill the tells:
+
+- No em dashes. Use a full stop, a comma, or brackets instead.
+- No "it's not just X, it's Y" lines.
+- Don't open with "Here's the…" or similar set-ups.
+- No rule of three stacked in every sentence (three adjectives, three benefits, three clauses).
+- No hedging like "it's worth noting", "it's important to mention" or "I just wanted to".
+- No vague uplifting ending ("excited to see what's possible", "here's to your growth").
+- Vary sentence length so the rhythm feels like a real person wrote it. Some short. Some longer, where the thought needs room.
+
+Keep the meaning exactly as the evidence supports it: these rules change how something is said, never what is claimed. When a human asks for a rewrite and pastes a sample of their own writing in the feedback, match that voice instead of inventing a new one.
+
 ## Suggested sequence structure
 
 **Email 1** — open with a relevant observation from the company context, connect it to the offer, ask a low-pressure question.
 
-**Email 2** — add another relevant angle: a workflow bottleneck, scaling challenge, or operational pattern connected to the offer.
+**Email 2** — add another relevant angle: a workflow bottleneck, scaling challenge, or operational pattern that connects to AI automation support.
 
 **Email 3** — brief follow-up, invite a reply if the timing or fit is wrong.
 
@@ -47,4 +65,4 @@ A human reviewing a draft may ask for a specific revision ("shorter," "more casu
 
 ## Quality check
 
-Before finalizing copy, check: does each email mention a real company-specific detail? Can each claim be traced to source context? Is the ask clear? Is the tone calm and credible? Would a human want to review this before sending? Is every piece within its length limit above?
+Before finalizing copy, check: does each email mention a real company-specific detail? Can each claim be traced to source context? Is the ask clear? Is the tone calm and credible? Would a human want to review this before sending? Is every piece within its length limit above? Does anything in it read like AI wrote it (see "Write like a human")?

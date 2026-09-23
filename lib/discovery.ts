@@ -228,9 +228,9 @@ export type DropReason = "no usable website" | "size outside the ICP" | "headqua
 export function screenCandidates(
   candidates: CompanyCandidate[],
   icp: { headcount: HeadcountRange; countryCodes: string[] }
-): { kept: CompanyCandidate[]; dropped: Array<{ name: string; reason: DropReason }> } {
+): { kept: CompanyCandidate[]; dropped: Array<{ name: string; reason: DropReason; company: CompanyCandidate }> } {
   const kept: CompanyCandidate[] = [];
-  const dropped: Array<{ name: string; reason: DropReason }> = [];
+  const dropped: Array<{ name: string; reason: DropReason; company: CompanyCandidate }> = [];
   const lo = icp.headcount.min ?? 0;
   const hi = icp.headcount.max ?? Infinity;
 
@@ -248,10 +248,21 @@ export function screenCandidates(
       reason = "headquarters outside the ICP's countries";
     }
 
-    if (reason) dropped.push({ name: c.name, reason });
+    if (reason) dropped.push({ name: c.name, reason, company: c });
     else kept.push(c);
   }
   return { kept, dropped };
+}
+
+/**
+ * A stable per-search key for a company: its domain, or for companies with
+ * no usable website (ruled out, but still worth listing) its LinkedIn URL,
+ * falling back to its name.
+ */
+export function candidateKey(c: CompanyCandidate): string {
+  if (c.domain) return c.domain;
+  if (c.linkedinUrl) return `linkedin:${c.linkedinUrl.toLowerCase().replace(/\/+$/, "")}`;
+  return `name:${c.name.toLowerCase().trim()}`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

@@ -1,23 +1,37 @@
 import Link from "next/link";
 import { signOut } from "@/app/actions/auth";
+import { HeaderNav } from "./HeaderNav";
 import { ThemeToggle } from "./ThemeToggle";
 
-export function AppHeader({ email }: { email: string }) {
+/**
+ * Sits in the same column as every page's content (max-w-5xl), so the
+ * wordmark lines up with the page title. No separate chrome bar
+ * (frontend-design.md): one content-width hairline underneath.
+ */
+export function AppHeader() {
   return (
-    <header className="flex items-center justify-between gap-4 border-b border-rule px-4 py-4 sm:px-6">
-      <Link href="/" className="text-lg font-semibold">
-        Hound
-      </Link>
-      <div className="flex min-w-0 items-center gap-4 text-sm text-ash">
-        <ThemeToggle />
-        <span className="hidden max-w-[16rem] truncate sm:inline" title={email}>
-          {email}
-        </span>
-        <form action={signOut}>
-          <button type="submit" className="cursor-pointer whitespace-nowrap hover:text-ink">
-            Log out
-          </button>
-        </form>
+    <header className="mx-auto w-full max-w-5xl px-4 sm:px-6">
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-b border-rule">
+        <Link
+          href="/"
+          className="py-4 text-[17px] font-semibold tracking-[-0.01em] text-ink focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+        >
+          Hound
+        </Link>
+
+        <HeaderNav />
+
+        <div className="ml-auto flex items-center gap-4 py-3 text-sm">
+          <ThemeToggle />
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="cursor-pointer whitespace-nowrap rounded-sm px-2 py-1 text-ash hover:bg-rule/60 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Log out
+            </button>
+          </form>
+        </div>
       </div>
     </header>
   );

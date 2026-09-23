@@ -11,7 +11,14 @@ type LeadEvidence = {
 
 export type RegenerateOutcome =
   | { ok: true; content: unknown; costUsd: number }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; costUsd: number };
+
+/**
+ * Loading each skill takes turns of its own before the answer; a real test
+ * run used 5 (reported num_turns). 8 leaves headroom without letting a
+ * single rewrite run away (each attempt is still capped by this).
+ */
+const REGENERATE_MAX_TURNS = 8;
 
 const TARGET_LABEL: Record<RegenerateTarget, string> = {
   email_1: "the first cold email in the sequence (subject, body, personalization_note)",
@@ -59,19 +66,32 @@ export async function regenerateOutreachTarget(
 
     let resultText = "";
 
-    for await (const message of query({
-      prompt,
-      options: {
-        cwd: process.cwd(),
-        settingSources: ["project"],
-        skills: ["outbound-copywriting", "outreach-safety"],
-        model: MODEL,
-        maxTurns: 1,
-      },
-    })) {
-      if (message.type === "result" && message.subtype === "success") {
-        resultText = message.result;
-        costUsd += message.total_cost_usd ?? 0;
+    // The SDK throws after an error result (e.g. hitting maxTurns), so the
+    // loop is guarded: a failed attempt becomes a retry, never a crash.
+    try {
+      for await (const message of query({
+        prompt,
+        options: {
+          cwd: process.cwd(),
+          settingSources: ["project"],
+          skills: ["outbound-copywriting", "outreach-safety"],
+          allowedTools: ["Skill"],
+          model: MODEL,
+          // Loading each skill is a turn of its own before the answer, so
+          // 1 turn was never enough: Claude spent it loading the skill.
+          maxTurns: REGENERATE_MAX_TURNS,
+        },
+      })) {
+        if (message.type === "result") {
+          // Cost counts whether or not the attempt produced usable text.
+          costUsd += message.total_cost_usd ?? 0;
+          if (message.subtype === "success" && !message.is_error) resultText = message.result;
+        }
+      }
+    } catch (err) {
+      if (!resultText) {
+        lastIssue = `Claude's session ended early: ${err instanceof Error ? err.message : String(err)}`;
+        continue;
       }
     }
 
@@ -109,5 +129,5 @@ export async function regenerateOutreachTarget(
     }
   }
 
-  return { ok: false, reason: lastIssue ?? "Regeneration failed after retries." };
+  return { ok: false, reason: lastIssue ?? "Regeneration failed after retries.", costUsd };
 }

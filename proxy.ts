@@ -40,8 +40,12 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isLoginRoute = request.nextUrl.pathname.startsWith("/login");
+  // API routes check the session themselves and answer 401 as JSON. A
+  // redirect here would hand fetch() the login page's HTML with a 200,
+  // which the client would misread (autosave would even show "Saved").
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
 
-  if (!user && !isLoginRoute) {
+  if (!user && !isLoginRoute && !isApiRoute) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);

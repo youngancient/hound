@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { postSearchFailure } from "@/lib/discord";
 import { requireSessionUser } from "@/lib/supabase/auth";
 import { supabaseService } from "@/lib/supabase/service";
 import { inngest } from "@/lib/inngest/client";
@@ -69,7 +70,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "We couldn't start your search. Please try again." }, { status: 500 });
   }
 
-  await inngest.send({ name: "hound/search.requested", data: { runId: run.id } });
+  // The row already exists, so a failed handoff must not leave it sitting
+  // at "Getting started" forever: mark it failed so the search page shows
+  // the reason and its Try again form.
+  try {
+    await inngest.send({ name: "hound/search.requested", data: { runId: run.id } });
+  } catch (err) {
+    console.error("inngest.send failed for run", run.id, err);
+    // The team hears about it too: this is exactly when the background
+    // job never ran, so its own failure alert can't fire. Sent after the
+    // response so the user isn't kept waiting.
+    after(() =>
+      postSearchFailure({
+        runId: run.id,
+        objective: parsed.data.objective,
+        error: `Couldn't hand the search to Inngest: ${err instanceof Error ? err.message : String(err)}`,
+      })
+    );
+    await db
+      .from("runs")
+      .update({
+        status: "failed",
+        status_note: "Hound couldn't start this search. Please try again.",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", run.id);
+    return NextResponse.json({ error: "We couldn't start your search. Please try again." }, { status: 502 });
+  }
 
   return NextResponse.json({ id: run.id });
 }

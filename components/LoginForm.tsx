@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { createBrowserAuthClient } from "@/lib/supabase/browser";
 import { Spinner } from "./Spinner";
+import { safeNextPath } from "@/lib/session";
 
 /** Invite-only — there is no sign-up link here on purpose (design.md Section 11). */
 export function LoginForm() {
@@ -26,7 +27,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push(searchParams.get("next") || "/");
+    router.push(safeNextPath(searchParams.get("next")));
     router.refresh();
   }
 
