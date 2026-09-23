@@ -22,7 +22,14 @@ export const MAX_SCRAPES = 30;
 export const MAX_QUALIFIED_LEADS = 10;
 export const MAX_AGENT_TURNS = 50;
 
-export const APIFY_ACTOR_ID = "automation-lab/linkedin-company-search-scraper";
+/**
+ * harvestapi's LinkedIn company search, in "full" scraper mode — "short"
+ * mode doesn't return the company website, which Firecrawl needs. Chosen
+ * over automation-lab/linkedin-company-search-scraper for reliability
+ * (100% vs 84% run success rate at evaluation time); see
+ * artifact/design.md Section 1 and artifact/result.md / result2.md.
+ */
+export const APIFY_ACTOR_ID = "harvestapi/linkedin-company-search";
 
 export const FIRECRAWL_RETRY_LIMIT = 1;
 export const APIFY_RETRY_LIMIT = 1;
@@ -39,11 +46,12 @@ export const EMAIL_SUBJECT_MAX_CHARS = 60;
 export const EMAIL_BODY_MAX_CHARS = 1500;
 
 /**
- * Apify's LinkedIn Company Search Scraper is pay-per-event, ~$0.0004–
- * $0.0018/company depending on plan tier — see artifact/design.md Section
- * 7. Pick the rate for whichever Apify plan is actually active.
+ * harvestapi pay-per-result pricing, full mode: $4 per 1,000 companies
+ * (short mode is $2/1,000 but lacks `website`). A small per-run start fee
+ * (~$0.001) isn't modelled — it's noise next to the per-result cost.
+ * A capped search pulls at most MAX_CANDIDATES, so ~$0.12.
  */
-export const APIFY_COST_PER_LINKEDIN_RESULT = 0.0018;
+export const APIFY_COST_PER_LINKEDIN_RESULT = 0.004;
 
 /**
  * Firecrawl is on the free plan right now — the column still gets
