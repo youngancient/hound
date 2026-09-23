@@ -6,9 +6,9 @@ type ThemeChoice = "system" | "light" | "dark";
 
 const ORDER: ThemeChoice[] = ["system", "light", "dark"];
 const TITLE: Record<ThemeChoice, string> = {
-  system: "Theme: matching system — click for light",
-  light: "Theme: light — click for dark",
-  dark: "Theme: dark — click for system",
+  system: "Theme matches your device. Click for light.",
+  light: "Light theme. Click for dark.",
+  dark: "Dark theme. Click to match your device.",
 };
 
 function applyTheme(choice: ThemeChoice) {

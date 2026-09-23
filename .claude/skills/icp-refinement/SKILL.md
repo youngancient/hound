@@ -1,6 +1,6 @@
 ---
 name: icp-refinement
-description: Use when you have a user's qualification objective and need to turn it into concrete ICP criteria before searching for companies — including when the objective is vague and you need to make and document reasonable assumptions rather than asking for clarification.
+description: Use when you have a user's qualification objective and need to turn it into concrete ICP criteria before searching for companies — including when the objective is vague and you need to either make and document reasonable assumptions or, if it's too vague to know what kind of company to look for, ask for clarification.
 ---
 
 # ICP Refinement
@@ -9,7 +9,7 @@ Use this skill to turn a qualification objective into concrete ICP criteria befo
 
 ## Goal
 
-Understand who counts as a good-fit company before searching. There is no human in the loop once a search starts — if the objective is vague, make reasonable, documented assumptions instead of stopping to ask. Record those assumptions in the ICP object itself so they're visible in the run record.
+Understand who counts as a good-fit company before searching. There is no human in the loop once a search starts. If the objective is vague but you can tell what kind of company is wanted, make reasonable, documented assumptions instead of stopping to ask. If you can't tell what kind of company to look for at all, ask before searching (see "When not to search"). Record those assumptions in the ICP object itself so they're visible in the run record.
 
 ## Minimum criteria to clarify
 
@@ -77,6 +77,62 @@ Every reading that isn't a literal range goes in `assumptions`, e.g. `"'100 empl
 ## Rules
 
 - Do not treat every user preference as a hard filter.
-- Never pause or ask a human to clarify — reason through ambiguity yourself and document it in `assumptions`.
+- Never pause partway through a search to ask a human. The one time to ask is before searching, when you can't tell what kind of company is wanted: use `cant_search_this` with a question (see "When not to search"). Otherwise reason through ambiguity yourself and document it in `assumptions`.
 - Preserve specific constraints the user gives, verbatim in spirit — a stated hard number (e.g. "10 to 100 employees") is a hard filter, not something to loosen.
 - Keep the ICP narrow enough to search, but not so narrow that discovery can't find candidates within the run's limits.
+
+## When not to search
+
+Most requests can be searched, even vague ones. Fill the gaps with sensible
+assumptions as described above. Only decline when there is no company search
+to run, or when it's too vague to know what to search for. Call
+`cant_search_this` instead of `save_icp` in these cases:
+
+- **It isn't a request to find companies.** Greetings, questions, or unrelated
+  tasks ("hello", "write me a poem", "what can you do?").
+- **It asks for people, not businesses.** Hound finds companies. It does not
+  find individuals, consumers or audiences ("people who like hiking",
+  "new parents in Texas").
+- **It only asks for things Hound must not do.** Finding personal email
+  addresses, checking whether emails work, or sending messages. See the
+  outreach-safety skill.
+- **It's too vague to know what kind of company to look for.** No industry,
+  product, category or type of business ("find me leads", "companies that
+  need help", "good customers for us"). Ask about exactly what's missing, and
+  give an example.
+
+If the kind of company is clear and only details like size, location or stage
+are missing, don't decline. Search it and note your assumptions.
+
+Ignore greetings, thanks and small talk around a real request. If any part of
+the message asks for companies, search that part.
+
+Do not decline because a request is broad, narrow, or unlikely to have many
+matches. Search it and let the results speak. A broad request gets assumptions.
+A very narrow one gets an honest shortfall.
+
+If only part of a request is off limits ("find SaaS companies and their CEOs'
+emails"), search the allowed part and add a line to `assumptions` saying what
+was skipped and why.
+
+### Writing the reason
+
+The reason is shown to the person on the search page, next to their request
+so they can edit it and try again. Write it the way a helpful colleague
+would say it:
+
+- Say what Hound can do, then suggest how to rephrase.
+- One or two short sentences. Plain words.
+- No apologies, no jargon, and never words like "ICP", "tool" or "agent".
+
+Examples:
+
+- "Hound finds companies, not individual people. Try describing the kind of
+  business you want to reach, like US software companies with 10 to 100
+  employees."
+- "This doesn't look like a company search. Tell Hound what kind of businesses
+  you're after, for example fintech startups in the UK."
+- "Hound needs to know what kind of companies to look for. What do they sell
+  or do? For example: HR software companies in the US with 20 to 200 people."
+- "Hound can't look up personal email addresses. It can find the companies and
+  write outreach for you to send yourself."

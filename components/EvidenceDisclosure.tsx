@@ -1,3 +1,5 @@
+import { ACTIVITY_LABEL } from "@/lib/labels";
+
 type ToolCall = {
   id: string;
   tool_name: string;
@@ -30,11 +32,13 @@ export function EvidenceDisclosure({ sourceUrls, toolCalls }: { sourceUrls: stri
         {toolCalls.length > 0 && (
           <div>
             <p className="mb-1 text-xs text-ash">Activity</p>
-            <ul className="flex flex-col gap-1 font-mono text-xs text-ash">
+            <ul className="flex flex-col gap-1 text-xs text-ash">
               {toolCalls.map((call) => (
-                <li key={call.id}>
-                  {call.tool_name} — {call.status}
-                  {call.error_message ? `: ${call.error_message}` : ""}
+                <li key={call.id} className="flex flex-wrap gap-x-2">
+                  <span>{ACTIVITY_LABEL[call.tool_name] ?? "Worked on this lead"}</span>
+                  <span className={call.status === "error" ? "text-oxblood" : ""}>
+                    {call.status === "error" ? "Didn't work" : "Done"}
+                  </span>
                 </li>
               ))}
             </ul>

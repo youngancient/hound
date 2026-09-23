@@ -21,7 +21,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const body = await request.json().catch(() => null);
   const parsed = RegenerateRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Couldn't regenerate that — try again." }, { status: 400 });
+    return NextResponse.json({ error: "We couldn't rewrite that. Please try again." }, { status: 400 });
   }
 
   const db = supabaseService();
@@ -54,7 +54,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     });
     // Existing content is left untouched — never overwrite a good draft
     // with a failed attempt (design.md Section 5).
-    return NextResponse.json({ error: "Couldn't regenerate that — try again." }, { status: 502 });
+    return NextResponse.json({ error: "We couldn't rewrite that. Please try again." }, { status: 502 });
   }
 
   const sequence = Array.isArray(lead.outreach_sequence)

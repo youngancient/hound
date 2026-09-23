@@ -30,8 +30,8 @@ export function IcpSummary({ icp }: { icp: RefinedIcp }) {
         <div className="flex flex-col gap-1">
           <p className="text-ink">Hound assumed:</p>
           <ul className="flex list-disc flex-col gap-0.5 pl-5 text-ash">
-            {icp.assumptions.map((assumption) => (
-              <li key={assumption}>{assumption}</li>
+            {icp.assumptions.map((assumption, i) => (
+              <li key={i}>{assumption}</li>
             ))}
           </ul>
         </div>

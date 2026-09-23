@@ -22,7 +22,7 @@ export function LoginForm() {
     setLoading(false);
 
     if (error) {
-      toast.error("Couldn't log in — check your email and password.");
+      toast.error("That email or password didn't work. Please check them and try again.");
       return;
     }
 

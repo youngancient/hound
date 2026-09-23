@@ -8,7 +8,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
       await navigator.clipboard.writeText(text);
       toast.success("Copied.");
     } catch {
-      toast.error("Couldn't copy — try selecting the text instead.");
+      toast.error("Copying didn't work. Select the text and copy it yourself.");
     }
   }
 

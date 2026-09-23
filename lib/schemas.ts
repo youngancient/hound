@@ -60,6 +60,12 @@ export type ToolLimits = z.infer<typeof ToolLimitsSchema>;
 export const QualificationResultSchema = z.object({
   company_name: z.string().min(1),
   company_domain: z.string().min(1),
+  linkedin_url: z
+    .string()
+    .url()
+    .refine((u) => /^https:\/\/([a-z]+\.)?linkedin\.com\//i.test(u), "must be a linkedin.com URL")
+    .nullable()
+    .optional(),
   qualification_status: z.enum(["qualified", "not_qualified", "needs_review"]),
   confidence: z.number().min(0).max(1),
   fit_reasons: z.array(z.string()),

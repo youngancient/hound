@@ -34,3 +34,34 @@ export async function getRefinedIcp(runId: string): Promise<RefinedIcp | null> {
   const parsed = RefinedIcpSchema.safeParse(data?.refined_icp);
   return parsed.success ? parsed.data : null;
 }
+
+/**
+ * Marks a search as declined: the request had no company search to run
+ * (not a company search, people instead of businesses, or only disallowed
+ * asks). Only possible before discovery starts, so a declined request
+ * never spends Apify budget. `reason` is shown to the user as written.
+ */
+export async function declineSearch(
+  runId: string,
+  reason: string
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { data, error } = await supabaseService()
+    .from("runs")
+    .update({ status: "declined", status_note: reason, completed_at: new Date().toISOString() })
+    .eq("id", runId)
+    .eq("status", "running")
+    .eq("discovery_passes_used", 0)
+    .select("id");
+
+  if (error) throw new Error(`declineSearch failed: ${error.message}`);
+  if (!data || data.length === 0) {
+    return { ok: false, reason: "The search has already started looking for companies, so it can't be declined now. Finish it instead." };
+  }
+  return { ok: true };
+}
+
+export async function getRunStatus(runId: string): Promise<string | null> {
+  const { data, error } = await supabaseService().from("runs").select("status").eq("id", runId).single();
+  if (error) throw new Error(`getRunStatus failed: ${error.message}`);
+  return data?.status ?? null;
+}

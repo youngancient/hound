@@ -45,6 +45,10 @@ export const searchPipeline = inngest.createFunction(
       // once as a fresh session before the catch below marks it failed.
       const { totalCostUsd, end } = await step.run("run-agent", () => runSearch(runId, claimed.objective, limits));
 
+      // Already marked declined (with its reason) by the cant_search_this
+      // tool. Nothing was searched, so no completion email either.
+      if (end === "declined") return { declined: true, totalCostUsd };
+
       const qualifiedCount = await step.run("count-qualified", async () => {
         const { count } = await db
           .from("leads")
@@ -106,7 +110,7 @@ export const searchPipeline = inngest.createFunction(
 );
 
 const FAILURE_NOTE =
-  "Hound ran into a problem partway through and couldn't finish. Any good fits it found are below — you can try the search again.";
+  "Something went wrong and Hound couldn't finish this search. Any good fits it found are listed below, and you can run the search again.";
 
 /**
  * The user-facing reason a completed search came up short. Must match
@@ -118,7 +122,7 @@ function explainShortfall(qualifiedCount: number, target: number, end: SessionEn
   if (qualifiedCount >= target) return null;
   const found = `Found ${qualifiedCount} good fit${qualifiedCount === 1 ? "" : "s"}`;
   if (end === "limit_reached") {
-    return `${found} — Hound reached its step limit before it could check every company.`;
+    return `${found}. Hound hit its limit for this search before it could check every company.`;
   }
-  return `${found} — Hound ran out of new companies to check within this search's budget.`;
+  return `${found}. Hound ran out of new companies to check for this search.`;
 }

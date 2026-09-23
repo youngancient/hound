@@ -36,7 +36,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: "Couldn't save that edit — try again." }, { status: 500 });
+    return NextResponse.json({ error: "Your change wasn't saved. Please try again." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

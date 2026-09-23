@@ -23,7 +23,7 @@ export default async function SearchDetailPage(props: { params: Promise<{ id: st
     <div className="flex min-h-full flex-col">
       <AppHeader email={user?.email ?? ""} />
       <AutoRefresh active={isActive} />
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-6 py-10">
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-1">
           <Link href="/" className="text-xs text-ash hover:text-ink">
             ← Your searches
@@ -46,22 +46,31 @@ export default async function SearchDetailPage(props: { params: Promise<{ id: st
           </div>
         )}
 
+        {run.status === "declined" && (
+          <div className="flex flex-col gap-4 rounded-sm border border-accent px-4 py-3">
+            <p className="text-sm">{run.status_note ?? "Hound couldn't turn this into a company search."}</p>
+            <NewSearchForm prefill={run.objective} />
+          </div>
+        )}
+
         {run.status === "completed" && run.status_note && (
           <p className="rounded-sm border border-rule px-4 py-3 text-sm text-ash">{run.status_note}</p>
         )}
 
-        <div className="grid gap-8 sm:grid-cols-[200px_1fr]">
-          <PipelineTrail currentStage={isActive ? run.current_stage : run.status === "completed" ? "Done" : null} />
+        {run.status !== "declined" && (
+          <div className="grid gap-8 sm:grid-cols-[200px_1fr]">
+            <PipelineTrail currentStage={isActive ? run.current_stage : run.status === "completed" ? "Done" : null} />
 
-          <div className="flex flex-col gap-6">
-            {icp && <IcpSummary icp={icp} />}
-            {isActive && leads.length === 0 ? (
-              <p className="text-sm text-ash">Hound is still looking — leads will appear here as they&apos;re found.</p>
-            ) : (
-              <LeadGroups runId={run.id} leads={leads} isActive={isActive} />
-            )}
+            <div className="flex flex-col gap-6">
+              {icp && <IcpSummary icp={icp} />}
+              {isActive && leads.length === 0 ? (
+                <p className="text-sm text-ash">Hound is still looking. Leads will show up here as it finds them.</p>
+              ) : (
+                <LeadGroups runId={run.id} leads={leads} isActive={isActive} />
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

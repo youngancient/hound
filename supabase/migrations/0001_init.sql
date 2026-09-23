@@ -10,7 +10,10 @@ create table if not exists runs (
   refined_icp       jsonb,
   tool_limits       jsonb,
   status            text not null default 'pending'
-                      check (status in ('pending', 'running', 'completed', 'failed')),
+                      check (status in ('pending', 'running', 'completed', 'failed', 'declined')),
+                      -- 'declined': the request had no company search to run
+                      -- (see the icp-refinement skill); status_note holds the
+                      -- plain-language reason shown to the user
   status_note       text,
   current_stage     text, -- plain-language pipeline stage for the UI trail;
                           -- not in design.md's original schema — added because
@@ -38,6 +41,7 @@ create table if not exists leads (
   run_id                uuid not null references runs (id) on delete cascade,
   company_name          text not null,
   company_domain        text not null,
+  linkedin_url          text,  -- the company's LinkedIn page, from discovery
   qualification_status  text not null
                           check (qualification_status in ('qualified', 'not_qualified', 'needs_review')),
   confidence            numeric not null check (confidence between 0 and 1),
@@ -106,6 +110,11 @@ begin
     raise exception 'run % has incomplete tool_limits', p_run_id;
   end if;
 
+  if r.status <> 'running' then
+    return query select 0, r.discovery_passes_used, 'search is not running'::text;
+    return;
+  end if;
+
   if r.discovery_passes_used >= v_passes then
     return query select 0, r.discovery_passes_used, 'discovery passes exhausted'::text;
     return;
@@ -150,6 +159,7 @@ as $$
     update runs
        set scrapes_used = scrapes_used + 1
      where id = p_run_id
+       and status = 'running'
        and scrapes_used < (tool_limits ->> 'max_scrapes')::int
     returning 1
   )

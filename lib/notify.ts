@@ -19,8 +19,8 @@ export async function notifySearchComplete(params: {
     await brevo().transactionalEmails.sendTransacEmail({
       sender: brevoSender(),
       to: [{ email: params.toEmail }],
-      subject: `Search done: ${params.qualifiedCount} good fits found`,
-      htmlContent: `<p>Your search for "${params.objective}" is done — ${params.qualifiedCount} good fits found.</p><p><a href="${appUrl}/searches/${params.runId}">${appUrl}/searches/${params.runId}</a></p>`,
+      subject: `Your search is done: ${params.qualifiedCount} good fit${params.qualifiedCount === 1 ? "" : "s"}`,
+      htmlContent: `<p>Your search for "${params.objective}" is done. Hound found ${params.qualifiedCount} good fit${params.qualifiedCount === 1 ? "" : "s"}.</p><p><a href="${appUrl}/searches/${params.runId}">${appUrl}/searches/${params.runId}</a></p>`,
     });
   } catch (err) {
     console.error("notifySearchComplete failed:", err);

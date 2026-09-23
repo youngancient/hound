@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     .single();
 
   if (error || !run) {
-    return NextResponse.json({ error: "Couldn't start your search — try again." }, { status: 500 });
+    return NextResponse.json({ error: "We couldn't start your search. Please try again." }, { status: 500 });
   }
 
   await inngest.send({ name: "hound/search.requested", data: { runId: run.id } });

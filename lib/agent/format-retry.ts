@@ -12,6 +12,16 @@ import {
  * pipeline run via the caller's closure — a fresh Map per `buildHoundTools`
  * call, so attempt counts never leak across runs.
  */
+const FIELD_LABEL = {
+  email_1_subject: "The subject line of email 1",
+  email_1_body: "Email 1",
+  email_2_subject: "The subject line of email 2",
+  email_2_body: "Email 2",
+  email_3_subject: "The subject line of email 3",
+  email_3_body: "Email 3",
+  linkedin_message: "The LinkedIn message",
+} as const;
+
 export function createFormatRetryTracker() {
   const attempts = new Map<string, number>();
 
@@ -52,7 +62,8 @@ export function createFormatRetryTracker() {
       return {
         violation: true,
         final: true,
-        message: `${field} is still over the ${max}-character limit after ${MAX_FORMAT_RETRY_ATTEMPTS} attempts — saved anyway, flagged for manual shortening.`,
+        // Shown to the user in the lead's concerns, so it's written for them.
+        message: `${FIELD_LABEL[field]} is longer than ${max} characters. Please shorten it before you send it.`,
       };
     },
   };

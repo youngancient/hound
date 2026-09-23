@@ -33,7 +33,7 @@ export function LeadGroups({ runId, leads, isActive }: { runId: string; leads: L
         <h2 className="text-sm font-medium">Good fits ({goodFits.length})</h2>
         {goodFits.length === 0 ? (
           <p className="text-sm text-ash">
-            {isActive ? "No good fits yet — Hound is still checking companies." : "Hound didn't find any good fits for this search."}
+            {isActive ? "No good fits yet. Hound is still checking companies." : "Hound didn't find any good fits for this search."}
           </p>
         ) : (
           goodFits.map((lead) => <LeadRow key={lead.id} runId={runId} lead={lead} />)
@@ -76,7 +76,7 @@ function LeadRow({ runId, lead, reason }: { runId: string; lead: Lead; reason?: 
         <QualificationBadge status={lead.qualification_status as QualificationStatus} />
       </div>
       {reason && <span className="text-sm text-ash">{reason}</span>}
-      <span className="font-mono text-xs text-ash">{formatConfidence(lead.confidence)}</span>
+      <span className="font-mono text-xs text-ash">{formatConfidence(lead.confidence, lead.qualification_status as QualificationStatus)}</span>
     </Link>
   );
 }

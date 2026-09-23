@@ -20,6 +20,7 @@ export async function saveLead(
         run_id: runId,
         company_name: result.company_name,
         company_domain: result.company_domain,
+        linkedin_url: result.linkedin_url ?? null,
         qualification_status: result.qualification_status,
         confidence: result.confidence,
         fit_reasons: result.fit_reasons,

@@ -31,7 +31,7 @@ export function NewSearchForm({ prefill }: { prefill?: string }) {
 
     if (!res.ok) {
       setLoading(false);
-      toast.error("Couldn't start your search — try again.");
+      toast.error("We couldn't start your search. Please try again.");
       return;
     }
 
