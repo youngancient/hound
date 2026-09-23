@@ -1,6 +1,6 @@
 import { inngest } from "./client";
 import { supabaseService } from "../supabase/service";
-import { runSearch } from "../agent/run-search";
+import { runSearch, type SessionEnd } from "../agent/run-search";
 import { postSearchFailure } from "../discord";
 import { notifySearchComplete } from "../notify";
 import { ToolLimitsSchema, type ToolLimits } from "../schemas";
@@ -41,7 +41,9 @@ export const searchPipeline = inngest.createFunction(
       // malformed one fails the run here, before anything is spent.
       const limits: ToolLimits = ToolLimitsSchema.parse(claimed.tool_limits);
 
-      const { totalCostUsd } = await step.run("run-agent", () => runSearch(runId, claimed.objective, limits));
+      // Throws on a broken session (see runSearch), which Inngest retries
+      // once as a fresh session before the catch below marks it failed.
+      const { totalCostUsd, end } = await step.run("run-agent", () => runSearch(runId, claimed.objective, limits));
 
       const qualifiedCount = await step.run("count-qualified", async () => {
         const { count } = await db
@@ -52,10 +54,7 @@ export const searchPipeline = inngest.createFunction(
         return count ?? 0;
       });
 
-      const shortfallNote =
-        qualifiedCount < limits.max_qualified_leads
-          ? `Found ${qualifiedCount} good fits — Hound searched again but ran out of new companies to check within the discovery budget.`
-          : null;
+      const shortfallNote = explainShortfall(qualifiedCount, limits.max_qualified_leads, end);
 
       await step.run("finalize-success", () =>
         db
@@ -64,7 +63,6 @@ export const searchPipeline = inngest.createFunction(
             status: "completed",
             current_stage: "Done",
             completed_at: new Date().toISOString(),
-            claude_cost_usd: totalCostUsd,
             status_note: shortfallNote,
           })
           .eq("id", runId)
@@ -81,6 +79,8 @@ export const searchPipeline = inngest.createFunction(
 
       return { qualifiedCount, totalCostUsd };
     } catch (err) {
+      // Technical detail goes to Discord; the search page shows the person
+      // who ran it a plain explanation instead (frontend-design.md).
       const message = err instanceof Error ? err.message : String(err);
 
       // Best-effort — a failure writing the failure status must not
@@ -89,7 +89,7 @@ export const searchPipeline = inngest.createFunction(
         .run("finalize-failure", () =>
           db
             .from("runs")
-            .update({ status: "failed", status_note: message, completed_at: new Date().toISOString() })
+            .update({ status: "failed", status_note: FAILURE_NOTE, completed_at: new Date().toISOString() })
             .eq("id", runId)
         )
         .catch((finalizeErr: unknown) => console.error("finalize-failure step failed:", finalizeErr));
@@ -104,3 +104,21 @@ export const searchPipeline = inngest.createFunction(
     }
   }
 );
+
+const FAILURE_NOTE =
+  "Hound ran into a problem partway through and couldn't finish. Any good fits it found are below — you can try the search again.";
+
+/**
+ * The user-facing reason a completed search came up short. Must match
+ * what actually happened — a search that hit its step limit didn't "run
+ * out of companies", and a user deciding whether a market is worth
+ * pursuing reads this literally.
+ */
+function explainShortfall(qualifiedCount: number, target: number, end: SessionEnd): string | null {
+  if (qualifiedCount >= target) return null;
+  const found = `Found ${qualifiedCount} good fit${qualifiedCount === 1 ? "" : "s"}`;
+  if (end === "limit_reached") {
+    return `${found} — Hound reached its step limit before it could check every company.`;
+  }
+  return `${found} — Hound ran out of new companies to check within this search's budget.`;
+}

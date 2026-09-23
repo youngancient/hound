@@ -156,14 +156,29 @@ as $$
   select exists (select 1 from updated);
 $$;
 
+-- Adds Claude spend to the run as soon as the Agent SDK reports it, so a
+-- search that later fails still shows what it cost, and an Inngest retry
+-- of the agent step adds its own session's cost instead of overwriting.
+create or replace function add_claude_cost(p_run_id uuid, p_amount numeric)
+returns void
+language sql
+set search_path = public
+as $$
+  update runs
+     set claude_cost_usd = coalesce(claude_cost_usd, 0) + greatest(p_amount, 0)
+   where id = p_run_id;
+$$;
+
 -- Budget functions are server-only: callable by the service-role key,
 -- never by a signed-in browser client through the REST API.
 revoke execute on function reserve_discovery(uuid) from public, anon, authenticated;
 revoke execute on function release_candidates(uuid, int) from public, anon, authenticated;
 revoke execute on function reserve_scrape(uuid) from public, anon, authenticated;
+revoke execute on function add_claude_cost(uuid, numeric) from public, anon, authenticated;
 grant execute on function reserve_discovery(uuid) to service_role;
 grant execute on function release_candidates(uuid, int) to service_role;
 grant execute on function reserve_scrape(uuid) to service_role;
+grant execute on function add_claude_cost(uuid, numeric) to service_role;
 
 -- Row Level Security — design.md Section 2 & 11: shared workspace, every
 -- authenticated user reads everything; only the service-role key (used by

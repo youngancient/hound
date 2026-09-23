@@ -118,7 +118,7 @@ export function buildHoundTools(runId: string, limits: ToolLimits) {
 
   const save_lead = tool(
     "save_lead",
-    "Save a qualification result for a company, optionally with its outreach draft. Upserts on company domain — safe to call again for the same company. Refuses once the run has reached its qualified-lead target.",
+    "Save a qualification result for a company. A qualified company must include its outreach draft in the same call; not_qualified and needs_review companies are saved without one. Upserts on company domain — safe to call again for the same company. Refuses once the run has reached its qualified-lead target.",
     {
       qualification: z.object({
         company_name: z.string(),
@@ -151,6 +151,23 @@ export function buildHoundTools(runId: string, limits: ToolLimits) {
           errorMessage: `Schema validation failed: ${parsedQualification.error.message}`,
         });
         return jsonResult({ ok: false, error: "qualification failed schema validation" });
+      }
+
+      // The PRD requires every qualified lead to carry its 3-step sequence
+      // and LinkedIn message — enforced here, not left to the skill.
+      if (parsedQualification.data.qualification_status === "qualified" && !args.outreach) {
+        const issue =
+          "A qualified lead must be saved together with its outreach (3-step email sequence and LinkedIn message) — draft it with the outbound-copywriting skill and call save_lead again.";
+        await logToolCall({
+          runId,
+          toolName: "save_lead",
+          purpose: `Save qualification for ${args.qualification.company_domain}`,
+          inputSummary: { company_domain: args.qualification.company_domain, status: "qualified" },
+          resultSummary: { retryRequested: [issue] },
+          status: "error",
+          errorMessage: issue,
+        });
+        return jsonResult({ ok: false, retry: true, issues: [issue] });
       }
 
       // Char-limit format-retry (design.md Section 5) — checked manually,

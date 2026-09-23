@@ -36,3 +36,13 @@ export async function reserveScrape(runId: string): Promise<boolean> {
   if (error) throw new Error(`reserveScrape failed: ${error.message}`);
   return data === true;
 }
+
+/**
+ * Best-effort, like logToolCall: failing to record spend must never take
+ * down the search whose spend it's recording.
+ */
+export async function addClaudeCost(runId: string, amountUsd: number): Promise<void> {
+  if (!(amountUsd > 0)) return;
+  const { error } = await supabaseService().rpc("add_claude_cost", { p_run_id: runId, p_amount: amountUsd });
+  if (error) console.error("addClaudeCost failed:", error.message);
+}
