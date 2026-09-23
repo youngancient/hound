@@ -5,7 +5,8 @@ import { scrapeWebsite } from "../tools/scrape-website";
 import { saveLead, qualifiedLeadCountForRun } from "../tools/save-lead";
 import { logToolCall } from "../tools/log-tool-call";
 import { setCurrentStage } from "../tools/stage";
-import { QualificationResultSchema, type ToolLimits } from "../schemas";
+import { QualificationResultSchema, RefinedIcpSchema, type ToolLimits } from "../schemas";
+import { saveRefinedIcp } from "../tools/icp";
 import { createFormatRetryTracker } from "./format-retry";
 
 /**
@@ -34,6 +35,56 @@ function jsonResult(value: unknown) {
  */
 export function buildHoundTools(runId: string, limits: ToolLimits) {
   const formatRetry = createFormatRetryTracker();
+
+  // Loose at the SDK layer, strict inside the handler (same reasoning as
+  // EmailStepInputSchema): a validation miss comes back to the agent as a
+  // fixable message instead of an outright rejected call.
+  const save_icp = tool(
+    "save_icp",
+    "Save the refined ICP (from the icp-refinement skill) to the search record. Required before discover_companies will run, and locked once discovery starts. Returns validation issues to fix if the ICP is malformed.",
+    {
+      target_company_type: z.string(),
+      industries: z.array(z.string()),
+      geography: z.array(z.string()),
+      headcount_min: z.number().nullable(),
+      headcount_max: z.number().nullable(),
+      country_codes: z.array(z.string()),
+      buyer_persona: z.string(),
+      business_problem: z.string(),
+      hard_filters: z.array(z.string()),
+      soft_preferences: z.array(z.string()),
+      disqualifiers: z.array(z.string()),
+      assumptions: z.array(z.string()),
+    },
+    async (args) => {
+      const parsed = RefinedIcpSchema.safeParse(args);
+      if (!parsed.success) {
+        const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
+        await logToolCall({
+          runId,
+          toolName: "save_icp",
+          purpose: "Save the refined ICP",
+          inputSummary: args,
+          resultSummary: null,
+          status: "error",
+          errorMessage: issues.join("; "),
+        });
+        return jsonResult({ ok: false, issues });
+      }
+
+      const result = await saveRefinedIcp(runId, parsed.data);
+      await logToolCall({
+        runId,
+        toolName: "save_icp",
+        purpose: "Save the refined ICP",
+        inputSummary: parsed.data,
+        resultSummary: result,
+        status: result.ok ? "success" : "error",
+        errorMessage: result.ok ? null : result.reason,
+      });
+      return jsonResult(result);
+    }
+  );
 
   const discover_companies = tool(
     "discover_companies",
@@ -197,12 +248,13 @@ export function buildHoundTools(runId: string, limits: ToolLimits) {
   const server = createSdkMcpServer({
     name: "hound-tools",
     version: "1.0.0",
-    tools: [discover_companies, scrape_website, save_lead],
+    tools: [save_icp, discover_companies, scrape_website, save_lead],
   });
 
   return {
     server,
     allowedToolNames: [
+      "mcp__hound-tools__save_icp",
       "mcp__hound-tools__discover_companies",
       "mcp__hound-tools__scrape_website",
       "mcp__hound-tools__save_lead",

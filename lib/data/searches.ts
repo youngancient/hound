@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseService } from "../supabase/service";
+import { RefinedIcpSchema } from "../schemas";
 
 /**
  * Run cost = runs.claude_cost_usd + SUM(tool_calls.cost_usd) — computed at
@@ -60,8 +61,11 @@ export async function getSearch(runId: string) {
 
   const toolCosts = await costForRuns([runId]);
 
+  const icp = RefinedIcpSchema.safeParse(run.refined_icp);
+
   return {
     run: { ...run, totalCostUsd: (run.claude_cost_usd ?? 0) + (toolCosts[runId] ?? 0) },
+    icp: icp.success ? icp.data : null,
     leads: leads ?? [],
   };
 }

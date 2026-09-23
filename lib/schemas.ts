@@ -4,6 +4,7 @@ import {
   EMAIL_SUBJECT_MAX_CHARS,
   LINKEDIN_MESSAGE_MAX_CHARS,
 } from "./agent-config";
+import { isIsoCountryCode } from "./countries";
 
 /**
  * Every structured object the agent produces is validated against one of
@@ -11,18 +12,39 @@ import {
  * output alone. See artifact/design.md Section 2 (Principle 1/2).
  */
 
-export const RefinedIcpSchema = z.object({
-  target_company_type: z.string(),
-  industries: z.array(z.string()),
-  geography: z.array(z.string()),
-  headcount_range: z.string(),
-  buyer_persona: z.string(),
-  business_problem: z.string(),
-  hard_filters: z.array(z.string()),
-  soft_preferences: z.array(z.string()),
-  disqualifiers: z.array(z.string()),
-  assumptions: z.array(z.string()).default([]),
-});
+/**
+ * Claude interprets the free-text objective; everything downstream of
+ * this object is deterministic code. Headcount and countries are
+ * structured (not prose) because discovery filters and the pre-scrape
+ * checks are computed from them — see the icp-refinement skill.
+ */
+export const RefinedIcpSchema = z
+  .object({
+    target_company_type: z.string().min(1),
+    industries: z.array(z.string()),
+    geography: z.array(z.string()),
+    headcount_min: z.number().int().nonnegative().nullable(),
+    headcount_max: z.number().int().positive().nullable(),
+    country_codes: z.array(
+      z
+        .string()
+        .trim()
+        .toUpperCase()
+        .refine(isIsoCountryCode, {
+          message: 'must be an ISO 3166-1 alpha-2 country code (e.g. "US", and "GB" — not "UK" — for the United Kingdom)',
+        })
+    ),
+    buyer_persona: z.string(),
+    business_problem: z.string(),
+    hard_filters: z.array(z.string()),
+    soft_preferences: z.array(z.string()),
+    disqualifiers: z.array(z.string()),
+    assumptions: z.array(z.string()).default([]),
+  })
+  .refine((icp) => icp.headcount_min === null || icp.headcount_max === null || icp.headcount_min <= icp.headcount_max, {
+    message: "headcount_min must not exceed headcount_max",
+    path: ["headcount_min"],
+  });
 export type RefinedIcp = z.infer<typeof RefinedIcpSchema>;
 
 export const ToolLimitsSchema = z.object({

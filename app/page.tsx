@@ -39,7 +39,8 @@ export default async function SearchesPage() {
                     <span className="shrink-0 text-sm text-ash">{SEARCH_STATUS_LABEL[search.status as keyof typeof SEARCH_STATUS_LABEL]}</span>
                   </div>
                   <span className="font-mono text-xs text-ash">
-                    {search.qualifiedCount} good fit{search.qualifiedCount === 1 ? "" : "s"} so far · $
+                    {search.qualifiedCount} good fit{search.qualifiedCount === 1 ? "" : "s"}
+                    {search.status === "pending" || search.status === "running" ? " so far" : ""} · $
                     {search.totalCostUsd.toFixed(2)}
                   </span>
                 </Link>

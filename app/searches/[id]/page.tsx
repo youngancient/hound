@@ -4,9 +4,10 @@ import { getSessionUser } from "@/lib/supabase/auth";
 import { getSearch } from "@/lib/data/searches";
 import { AppHeader } from "@/components/AppHeader";
 import { PipelineTrail } from "@/components/PipelineTrail";
-import { QualificationBadge } from "@/components/QualificationBadge";
+import { IcpSummary } from "@/components/IcpSummary";
+import { LeadGroups } from "@/components/LeadGroups";
 import { AutoRefresh } from "@/components/AutoRefresh";
-import { formatConfidence, SEARCH_STATUS_LABEL, type QualificationStatus } from "@/lib/labels";
+import { SEARCH_STATUS_LABEL } from "@/lib/labels";
 import { NewSearchForm } from "@/components/NewSearchForm";
 
 export default async function SearchDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -15,7 +16,7 @@ export default async function SearchDetailPage(props: { params: Promise<{ id: st
   const data = await getSearch(id);
   if (!data) notFound();
 
-  const { run, leads } = data;
+  const { run, icp, leads } = data;
   const isActive = run.status === "pending" || run.status === "running";
 
   return (
@@ -52,23 +53,12 @@ export default async function SearchDetailPage(props: { params: Promise<{ id: st
         <div className="grid gap-8 sm:grid-cols-[200px_1fr]">
           <PipelineTrail currentStage={isActive ? run.current_stage : run.status === "completed" ? "Done" : null} />
 
-          <div className="flex flex-col gap-3">
-            {leads.length === 0 ? (
+          <div className="flex flex-col gap-6">
+            {icp && <IcpSummary icp={icp} />}
+            {isActive && leads.length === 0 ? (
               <p className="text-sm text-ash">Hound is still looking — leads will appear here as they&apos;re found.</p>
             ) : (
-              leads.map((lead) => (
-                <Link
-                  key={lead.id}
-                  href={`/searches/${run.id}/leads/${lead.id}`}
-                  className="flex flex-col gap-1.5 rounded-sm border border-rule px-4 py-3 hover:border-accent"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-medium">{lead.company_name}</span>
-                    <QualificationBadge status={lead.qualification_status as QualificationStatus} />
-                  </div>
-                  <span className="font-mono text-xs text-ash">{formatConfidence(lead.confidence)}</span>
-                </Link>
-              ))
+              <LeadGroups runId={run.id} leads={leads} isActive={isActive} />
             )}
           </div>
         </div>

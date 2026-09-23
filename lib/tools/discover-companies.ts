@@ -3,6 +3,7 @@ import { runLinkedinCompanySearch, type LinkedinCompanyResult } from "../apify";
 import { logToolCall } from "./log-tool-call";
 import { qualifiedLeadCountForRun } from "./save-lead";
 import { reserveDiscovery, releaseCandidates } from "./budget";
+import { getRefinedIcp } from "./icp";
 import { APIFY_COST_PER_LINKEDIN_RESULT, APIFY_RETRY_LIMIT } from "../agent-config";
 import type { ToolLimits } from "../schemas";
 
@@ -33,6 +34,11 @@ export async function discoverCompanies(
     companySizes?: string[];
   }
 ): Promise<DiscoverOutcome> {
+  // Checked before reserving, so a premature call doesn't spend a pass.
+  if (!(await getRefinedIcp(runId))) {
+    return skip(runId, input, "no refined ICP saved yet — call save_icp first");
+  }
+
   const qualified = await qualifiedLeadCountForRun(runId);
   if (qualified >= limits.max_qualified_leads) {
     return skip(runId, input, "qualified-lead target already reached");

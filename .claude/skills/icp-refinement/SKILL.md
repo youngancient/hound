@@ -28,14 +28,16 @@ Hard filters must be true for a lead to qualify (e.g. country must be United Sta
 
 ## Output format
 
-Produce this object before searching:
+Produce this object and save it with the `save_icp` tool before searching — discovery refuses to run until it's saved, and it's locked once discovery starts:
 
 ```json
 {
   "target_company_type": "",
   "industries": [],
   "geography": [],
-  "headcount_range": "",
+  "headcount_min": null,
+  "headcount_max": null,
+  "country_codes": [],
   "buyer_persona": "",
   "business_problem": "",
   "hard_filters": [],
@@ -45,7 +47,32 @@ Produce this object before searching:
 }
 ```
 
-`assumptions` is Hound-specific, not in the original guide: when the objective was vague and you filled a gap with a reasonable default (e.g. a broad but sane headcount range), record what you assumed and why, in plain language. This is what lets the run record show your reasoning instead of a black box.
+`geography` is the plain-language description ("Boston area", "United States"); `country_codes` is its structured form, which discovery filtering and pre-scrape checks are computed from. Code does all of that computation — your job is only to read the user's words correctly.
+
+## Reading headcount
+
+Set `headcount_min` / `headcount_max` as whole numbers of employees; leave both `null` if the objective doesn't mention size.
+
+- A range ("10 to 100 employees", "10–100 staff") → `10` / `100`.
+- A single number ("100 employees", "companies with about 40 people") means *roughly that size*, not exactly it — use half to double: `50` / `200`, `20` / `80`.
+- "Up to 100", "under 100", "fewer than 100" → `null` / `100`.
+- "100+", "at least 100", "over 100" → `100` / `null`.
+- Words count too: "small teams", "mid-size", "startups" — pick a sane range and say what you picked.
+
+Every reading that isn't a literal range goes in `assumptions`, e.g. `"'100 employees' read as roughly 100 — searching 50–200"`.
+
+## Reading geography
+
+`country_codes` holds ISO 3166-1 alpha-2 codes, uppercase.
+
+- Normalize any spelling or typo: "US", "USA", "U.S.", "America", "united states of amer" → `"US"`.
+- The United Kingdom is `"GB"`, never `"UK"` ("UK", "Britain", "England", "Scotland" → `"GB"`).
+- A region expands to its countries: "North America" → `["US", "CA"]`, "DACH" → `["DE", "AT", "CH"]`. Record the expansion in `assumptions`.
+- A city or state keeps its country's code ("Boston" → `["US"]`) and stays in `geography` as written — qualification checks the city.
+- Genuinely ambiguous names ("Georgia" — the country or the US state?) — decide from context and record the choice in `assumptions`.
+- No location mentioned → `[]` (search everywhere).
+
+`assumptions` is Hound-specific, not in the original guide: when the objective was vague and you filled a gap with a reasonable default (e.g. a broad but sane headcount range), record what you assumed and why, in plain language. These are shown to the user on the search page under "How Hound read your request" — write them for a marketer or salesperson, not as internal notes.
 
 ## Rules
 

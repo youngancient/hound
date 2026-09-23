@@ -34,6 +34,14 @@ export function formatConfidence(confidence: number): string {
   return `${pct}% · ${tier}`;
 }
 
+/** "10–100 people", "Up to 100 people", "100+ people", "Any size". */
+export function formatHeadcount(min: number | null, max: number | null): string {
+  if (min !== null && max !== null) return `${min.toLocaleString()}–${max.toLocaleString()} people`;
+  if (max !== null) return `Up to ${max.toLocaleString()} people`;
+  if (min !== null) return `${min.toLocaleString()}+ people`;
+  return "Any size";
+}
+
 export const PIPELINE_STAGES = [
   "Understanding the request",
   "Finding companies",
