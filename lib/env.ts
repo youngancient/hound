@@ -31,7 +31,9 @@ const INNGEST_CLOUD_ENV_VARS = ["INNGEST_EVENT_KEY", "INNGEST_SIGNING_KEY"] as c
  * register(), which Next.js runs before the server accepts requests.
  */
 export function assertRequiredEnv(): void {
-  const inngestDev = process.env.INNGEST_DEV === "1" || process.env.INNGEST_DEV === "true";
+  // Same rule as lib/inngest/client.ts: a production build always needs the cloud keys.
+  const inngestDev =
+    process.env.NODE_ENV !== "production" && (process.env.INNGEST_DEV === "1" || process.env.INNGEST_DEV === "true");
   const required = inngestDev ? REQUIRED_ENV_VARS : [...REQUIRED_ENV_VARS, ...INNGEST_CLOUD_ENV_VARS];
   const missing = required.filter((name) => !process.env[name]);
 
