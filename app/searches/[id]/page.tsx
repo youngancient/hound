@@ -143,7 +143,7 @@ export default async function SearchDetailPage(props: {
           </div>
         )}
 
-        {run.status === "completed" && run.status_note && funnel.found === 0 && (
+        {run.status === "completed" && run.status_note && (
           <p className="rounded-sm border border-rule px-4 py-3 text-sm text-ash">{run.status_note}</p>
         )}
 
