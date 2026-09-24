@@ -161,13 +161,60 @@ export async function getLead(leadId: string) {
   if (error) throw new Error(`Loading lead failed: ${error.message}`);
   if (!lead) return null;
 
-  const { data: toolCalls, error: callsError } = await db
-    .from("tool_calls")
-    .select("id, tool_name, purpose, status, error_message, cost_usd, created_at")
-    .eq("lead_id", leadId)
-    .order("created_at", { ascending: true });
-  if (callsError) throw new Error(`Loading lead activity failed: ${callsError.message}`);
-
   const run = (Array.isArray(lead.runs) ? lead.runs[0] : lead.runs) as { created_by: string; created_by_email: string };
-  return { lead, owner: { id: run.created_by, email: run.created_by_email }, toolCalls: toolCalls ?? [] };
+  return {
+    lead,
+    owner: { id: run.created_by, email: run.created_by_email },
+    toolCalls: await leadActivity(lead.id, lead.run_id, lead.company_domain),
+  };
+}
+
+const ACTIVITY_COLUMNS = "id, tool_name, purpose, status, error_message, cost_usd, created_at";
+
+/**
+ * The steps behind one lead, oldest first. Only save_lead (and later
+ * rewrites) carry a lead_id: the LinkedIn search and the website read
+ * happen before the lead row exists. So the website reads are matched on
+ * the domain they logged, and the search on the pass that saved this
+ * company as a candidate (the first successful one logged after it).
+ * Skipped reads are left out; nothing was read.
+ */
+async function leadActivity(leadId: string, runId: string, domain: string) {
+  const db = supabaseService();
+  const [linked, scrapes, candidate] = await Promise.all([
+    db.from("tool_calls").select(ACTIVITY_COLUMNS).eq("lead_id", leadId),
+    db
+      .from("tool_calls")
+      .select(`${ACTIVITY_COLUMNS}, result_summary`)
+      .eq("run_id", runId)
+      .eq("tool_name", "scrape_website")
+      .eq("input_summary->>companyDomain", domain),
+    db.from("candidates").select("discovered_at").eq("run_id", runId).eq("domain", domain).maybeSingle(),
+  ]);
+  for (const res of [linked, scrapes, candidate]) {
+    if (res.error) throw new Error(`Loading lead activity failed: ${res.error.message}`);
+  }
+
+  let discovery: typeof linked.data = [];
+  if (candidate.data) {
+    const found = await db
+      .from("tool_calls")
+      .select(ACTIVITY_COLUMNS)
+      .eq("run_id", runId)
+      .eq("tool_name", "discover_companies")
+      .eq("status", "success")
+      .gte("created_at", candidate.data.discovered_at)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (found.error) throw new Error(`Loading lead activity failed: ${found.error.message}`);
+    discovery = found.data;
+  }
+
+  const reads = (scrapes.data ?? [])
+    .filter((c) => !(c.result_summary as { skipped?: boolean } | null)?.skipped)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    .map(({ result_summary, ...call }) => call);
+
+  const byId = new Map([...(discovery ?? []), ...reads, ...(linked.data ?? [])].map((c) => [c.id, c]));
+  return [...byId.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
