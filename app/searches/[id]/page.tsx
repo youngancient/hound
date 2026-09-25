@@ -115,7 +115,7 @@ export default async function SearchDetailPage(props: {
             <details className="text-sm">
               <summary className="cursor-pointer text-ash">Start over with a new search</summary>
               <div className="mt-3">
-                <NewSearchForm prefill={run.objective} />
+                <NewSearchForm prefill={run.objective} allowRepeat />
               </div>
             </details>
           </div>
@@ -130,7 +130,7 @@ export default async function SearchDetailPage(props: {
             <details>
               <summary className="cursor-pointer text-ash">Start a new search</summary>
               <div className="mt-3">
-                <NewSearchForm prefill={run.objective} />
+                <NewSearchForm prefill={run.objective} allowRepeat />
               </div>
             </details>
           </div>
@@ -139,7 +139,7 @@ export default async function SearchDetailPage(props: {
         {run.status === "declined" && (
           <div className="flex flex-col gap-4 rounded-sm border border-accent px-4 py-3">
             <p className="text-sm">{run.status_note ?? "Hound couldn't turn this into a company search."}</p>
-            <NewSearchForm prefill={run.objective} />
+            <NewSearchForm prefill={run.objective} allowRepeat />
           </div>
         )}
 

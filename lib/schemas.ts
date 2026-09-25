@@ -5,6 +5,7 @@ import {
   LINKEDIN_MESSAGE_MAX_CHARS,
 } from "./agent-config";
 import { isIsoCountryCode } from "./countries";
+import type { RunStatus } from "./labels";
 
 /**
  * Every structured object the agent produces is validated against one of
@@ -116,5 +117,17 @@ export type RegenerateRequest = z.infer<typeof RegenerateRequestSchema>;
 export const CreateRunSchema = z.object({
   objective: z.string().min(10, "Tell Hound a bit more about who you're looking for."),
   idempotency_key: z.string().uuid(),
+  /** Set once the user has seen the "searched this before" dialog and chosen to search again. */
+  rerun: z.boolean().optional(),
 });
 export type CreateRunInput = z.infer<typeof CreateRunSchema>;
+
+/** The earlier search `POST /api/runs` hands back (409) when the same request was searched before. */
+export type PreviousSearch = {
+  id: string;
+  created_at: string;
+  status: RunStatus;
+  created_by: string | null;
+  created_by_email: string | null;
+  qualified_leads: number;
+};

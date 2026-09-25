@@ -12,7 +12,9 @@ import {
   MAX_QUALIFIED_LEADS,
   MAX_AGENT_TURNS,
 } from "@/lib/agent-config";
-import type { ToolLimits } from "@/lib/schemas";
+import type { PreviousSearch, ToolLimits } from "@/lib/schemas";
+import type { RunStatus } from "@/lib/labels";
+import { normalizeQuery } from "@/lib/discovery";
 
 /**
  * Creates a search. Idempotent on `idempotency_key` (design.md Section 10)
@@ -44,6 +46,16 @@ export async function POST(request: Request) {
 
   if (existing) {
     return NextResponse.json({ id: existing.id });
+  }
+
+  // Before anything is created or spent: if this exact request has been
+  // searched before, hand back that search so the user can open it
+  // instead of paying for the same search twice.
+  if (!parsed.data.rerun) {
+    const repeat = await findPreviousSearch(db, parsed.data.objective);
+    if (repeat) {
+      return NextResponse.json({ repeat: { ...repeat, mine: repeat.created_by === user.id } }, { status: 409 });
+    }
   }
 
   const { data: run, error } = await db
@@ -99,4 +111,44 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ id: run.id });
+}
+
+/**
+ * The most recent search with the same request, ignoring case and
+ * spacing (the same rule as `normalizeQuery`): a case-insensitive regex
+ * over the whole objective, so the database does the exact match.
+ */
+async function findPreviousSearch(
+  db: ReturnType<typeof supabaseService>,
+  objective: string
+): Promise<PreviousSearch | null> {
+  const words = normalizeQuery(objective)
+    .split(" ")
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = `^\\s*${words.join("\\s+")}\\s*$`;
+
+  const { data: match } = await db
+    .from("runs")
+    .select("id, created_at, status, created_by, created_by_email")
+    .filter("objective", "imatch", pattern)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!match) return null;
+
+  const { count } = await db
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("run_id", match.id)
+    .eq("qualification_status", "qualified");
+
+  return {
+    id: match.id,
+    created_at: match.created_at,
+    status: match.status as RunStatus,
+    created_by: match.created_by,
+    created_by_email: match.created_by_email,
+    qualified_leads: count ?? 0,
+  };
 }
