@@ -7,6 +7,7 @@ import { Spinner } from "./Spinner";
 import { LocalTime } from "./LocalTime";
 import { SESSION_ENDED_MESSAGE, loginUrlFor } from "@/lib/session";
 import type { PreviousSearch } from "@/lib/schemas";
+import { normalizeQuery } from "@/lib/discovery";
 
 const EXAMPLE = "Find 10 US B2B SaaS companies with 10 to 100 employees that may need AI automation support";
 
@@ -18,8 +19,9 @@ const EXAMPLE = "Find 10 US B2B SaaS companies with 10 to 100 employees that may
  *
  * If the same request was searched before, the server says so instead of
  * starting a search, and a dialog offers that search or a new one.
- * `allowRepeat` skips the check, for the forms on a search's own page,
- * where the user has already chosen to search again.
+ * `allowRepeat` skips the check on a search's own page, where the user has
+ * already chosen to search again, but only while the text is still that
+ * search's request (`prefill`): a reworded one is checked like any other.
  */
 export function NewSearchForm({
   prefill,
@@ -45,7 +47,8 @@ export function NewSearchForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await startSearch(allowRepeat);
+    const unchanged = prefill !== undefined && normalizeQuery(objective) === normalizeQuery(prefill);
+    await startSearch(allowRepeat && unchanged);
   }
 
   async function startSearch(rerun: boolean) {

@@ -218,6 +218,19 @@ export default async function SearchDetailPage(props: {
                 </div>
               )}
             </div>
+
+            {run.status === "completed" && (
+              <details className="rounded-sm border border-rule px-4 py-3 text-sm">
+                <summary className="cursor-pointer text-ash">Not satisfied with these results? Search again</summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  <p className="text-xs text-ash">
+                    Starts a new search with its own budget; this one stays as it is. The same request will likely find
+                    many of the same companies, so reword it to change what Hound looks for.
+                  </p>
+                  <NewSearchForm prefill={run.objective} allowRepeat />
+                </div>
+              </details>
+            )}
           </>
         )}
       </main>
