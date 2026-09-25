@@ -13,17 +13,23 @@ export async function saveRefinedIcp(
   icp: RefinedIcp
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   // Locked once discovery starts: the saved ICP must be the one the
-  // search actually ran with, not a later revision.
+  // search actually ran with, not a later revision. Also locked once the
+  // person who started the search has approved it: their version is final.
   const { data, error } = await supabaseService()
     .from("runs")
     .update({ refined_icp: icp })
     .eq("id", runId)
     .eq("discovery_passes_used", 0)
+    .is("icp_approved_at", null)
     .select("id");
 
   if (error) throw new Error(`saveRefinedIcp failed: ${error.message}`);
   if (!data || data.length === 0) {
-    return { ok: false, reason: "discovery has already started — the ICP can no longer be changed for this search" };
+    return {
+      ok: false,
+      reason:
+        "the ICP can no longer be changed for this search: either discovery has started, or the user has approved the saved ICP (get_progress shows it) — use it as is",
+    };
   }
   return { ok: true };
 }

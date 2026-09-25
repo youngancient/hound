@@ -16,7 +16,7 @@ export async function getProgress(runId: string, limits: ToolLimits) {
     await Promise.all([
       db
         .from("runs")
-        .select("refined_icp, attempt, candidates_used, scrapes_used, discovery_passes_used")
+        .select("refined_icp, icp_approved_at, attempt, candidates_used, scrapes_used, discovery_passes_used")
         .eq("id", runId)
         .single(),
       db.from("leads").select("company_domain, qualification_status").eq("run_id", runId),
@@ -41,6 +41,9 @@ export async function getProgress(runId: string, limits: ToolLimits) {
     attempt: run.attempt,
     icp_saved: icp.success,
     icp: icp.success ? icp.data : null,
+    // The person who started the search checked (and maybe edited) this
+    // ICP. It's final: search with it as is.
+    icp_approved_by_user: run.icp_approved_at !== null,
     qualified_leads: qualified,
     qualified_target: limits.max_qualified_leads,
     companies_checked: (leads ?? []).length,

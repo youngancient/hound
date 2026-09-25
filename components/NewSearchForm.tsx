@@ -37,6 +37,8 @@ export function NewSearchForm({
   const [objective, setObjective] = useState(prefill ?? "");
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [loading, setLoading] = useState(false);
+  const [reviewIcp, setReviewIcp] = useState(false);
+  const reviewId = useId();
   const [repeat, setRepeat] = useState<(PreviousSearch & { mine: boolean }) | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -58,7 +60,7 @@ export function NewSearchForm({
       const res = await fetch("/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ objective, idempotency_key: idempotencyKey, rerun }),
+        body: JSON.stringify({ objective, idempotency_key: idempotencyKey, rerun, review_icp: reviewIcp }),
       });
 
       if (res.status === 401) {
@@ -125,6 +127,19 @@ export function NewSearchForm({
           </ul>
         </div>
       )}
+      <label htmlFor={reviewId} className="flex w-fit cursor-pointer items-start gap-2.5 text-sm">
+        <input
+          id={reviewId}
+          type="checkbox"
+          checked={reviewIcp}
+          onChange={(e) => setReviewIcp(e.target.checked)}
+          className="mt-0.5 accent-[var(--accent)]"
+        />
+        <span className="flex flex-col gap-0.5">
+          <span>Let me check how Hound reads my request before it searches</span>
+          <span className="text-xs text-ash">Hound waits for you, then searches with your version. It emails you when it&apos;s ready.</span>
+        </span>
+      </label>
       <button
         type="submit"
         disabled={loading}
@@ -191,6 +206,8 @@ function describeOutcome(search: PreviousSearch): string {
     case "pending":
     case "running":
       return "It's still searching.";
+    case "awaiting_review":
+      return "It's waiting for its request to be checked.";
     case "completed":
       return `It found ${leads}.`;
     case "failed":

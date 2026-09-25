@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       created_by: user.id,
       created_by_email: user.email,
       idempotency_key: parsed.data.idempotency_key,
+      review_icp: parsed.data.review_icp ?? false,
       tool_limits: {
         max_candidates: MAX_CANDIDATES,
         first_pass_candidates: FIRST_PASS_CANDIDATES,

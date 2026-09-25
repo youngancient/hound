@@ -5,12 +5,13 @@
  * "Firecrawl", "tool_calls", or a raw confidence decimal.
  */
 
-export type RunStatus = "pending" | "running" | "completed" | "failed" | "declined";
+export type RunStatus = "pending" | "running" | "awaiting_review" | "completed" | "failed" | "declined";
 export type QualificationStatus = "qualified" | "not_qualified" | "needs_review";
 
 export const SEARCH_STATUS_LABEL: Record<RunStatus, string> = {
   pending: "Getting started",
   running: "Searching",
+  awaiting_review: "Waiting for you",
   completed: "Done",
   failed: "Didn't finish",
   declined: "Needs a clearer request",
@@ -20,6 +21,7 @@ export const SEARCH_STATUS_LABEL: Record<RunStatus, string> = {
 export const SEARCH_STATUS_COLOR_VAR: Record<RunStatus, string> = {
   pending: "var(--accent)",
   running: "var(--accent)",
+  awaiting_review: "var(--accent)",
   completed: "var(--moss)",
   failed: "var(--oxblood)",
   declined: "var(--ash)",
@@ -63,6 +65,7 @@ export const ACTIVITY_LABEL: Record<string, string> = {
   scrape_website: "Read the company's website",
   save_lead: "Saved Hound's assessment",
   save_icp: "Saved how Hound read your request",
+  review_icp: "Checked how Hound read the request",
   regenerate_outreach: "Rewrote outreach",
   cant_search_this: "Asked for a clearer request",
   agent_session: "Hound hit a problem",

@@ -12,7 +12,7 @@ import type { ToolLimits } from "../schemas";
 
 const SYSTEM_PROMPT = `You are Hound, a B2B lead research agent. Given a qualification objective, you:
 
-0. Call get_progress first. A search can resume after an interruption: if it shows a saved ICP, use that ICP (don't save a new one); if it lists companies found but not yet checked, work through those before discovering more; never redo companies already checked. Everything below still applies, just starting from where the search is.
+0. Call get_progress first. A search can resume after an interruption: if it shows a saved ICP, use that ICP (don't save a new one); if it lists companies found but not yet checked, work through those before discovering more; never redo companies already checked. Everything below still applies, just starting from where the search is. If get_progress shows icp_approved_by_user, the person who started the search checked that ICP and may have edited it: it's final, and where it differs from the objective's wording, the ICP wins.
 1. Refine it into concrete ICP criteria (use the icp-refinement skill) and save them with save_icp before any discovery. If there is no company search to run at all, call cant_search_this instead and stop (the skill says when).
 2. Discover candidate companies with the discover_companies tool — one pass first; if it doesn't yield enough qualified leads, one re-search with a different query.
 3–4. Work through the candidates one company at a time, finishing each before starting the next: scrape its website with scrape_website, qualify it (use the lead-qualification skill), and save it with save_lead (for a qualified company, draft its outreach with the outbound-copywriting skill and include it in the same save_lead call). Don't scrape several companies ahead and assess them later: holding many websites at once is slow and error-prone, and it means nothing appears for the user until the end. If a website can't be read, save the company as needs_review with that concern and move on.
@@ -31,10 +31,12 @@ Never stop partway through to ask a human. If you can't tell what kind of compan
  *   target was already met, so the user has what they asked for.
  * - `declined`: Claude called cant_search_this — the request had no
  *   company search to run, and the run is already marked declined.
+ * - `icp_saved`: an ICP-only session (the search asked for a review)
+ *   saved its ICP, so the search can wait for the person to check it.
  * Any other error throws `AgentSessionError` instead of returning, so the
  * search is marked failed (and Inngest retries the session once).
  */
-export type SessionEnd = "completed" | "limit_reached" | "error_after_target" | "declined";
+export type SessionEnd = "completed" | "limit_reached" | "error_after_target" | "declined" | "icp_saved";
 
 export type RunSearchResult = {
   totalCostUsd: number;
@@ -63,9 +65,20 @@ export class AgentSessionError extends Error {
  * per design.md Section 1's wiring: `cwd` at the project root,
  * `settingSources: ['project']` (skills don't load without it), and an
  * explicit skills list rather than `"all"`.
+ *
+ * `mode: "icp_only"` is the first session of a search that asked for an
+ * ICP review: it refines and saves the ICP (or declines) and ends, with
+ * no discovery tools at all. The search then waits for the person, and a
+ * later "full" session picks up the approved ICP from get_progress.
  */
-export async function runSearch(runId: string, objective: string, limits: ToolLimits): Promise<RunSearchResult> {
-  const { server, allowedToolNames } = buildHoundTools(runId, limits);
+export async function runSearch(
+  runId: string,
+  objective: string,
+  limits: ToolLimits,
+  mode: "full" | "icp_only" = "full"
+): Promise<RunSearchResult> {
+  const icpOnly = mode === "icp_only";
+  const { server, allowedToolNames } = buildHoundTools(runId, limits, { icpOnly });
 
   // Claude spend is written to the run the moment the SDK reports it, not
   // at the end of the Inngest function — otherwise a search that fails
@@ -111,9 +124,14 @@ export async function runSearch(runId: string, objective: string, limits: ToolLi
     return { final, thrown };
   }
 
-  let { final, thrown } = await runSession(`Qualification objective: ${objective}`);
+  let { final, thrown } = await runSession(
+    icpOnly
+      ? `Qualification objective: ${objective}\n\nThe person who started this search wants to check your ICP before any companies are searched. Call get_progress, then do step 1 only: refine the objective and save it with save_icp, or call cant_search_this if there's no company search to run. Then stop. Discovery isn't available in this session; it continues once they've approved the ICP.`
+      : `Qualification objective: ${objective}`
+  );
 
-  for (let followUp = 1; followUp <= MAX_FOLLOW_UP_SESSIONS; followUp++) {
+  // An ICP-only session has nothing to follow up: it stops at the ICP.
+  for (let followUp = 1; !icpOnly && followUp <= MAX_FOLLOW_UP_SESSIONS; followUp++) {
     const endedNormally = final?.subtype === "success" && !final.is_error;
     if (!endedNormally || (await getRunStatus(runId)) === "declined") break;
 
@@ -152,7 +170,10 @@ export async function runSearch(runId: string, objective: string, limits: ToolLi
   if (ended) {
     // Backstop: a session that neither saved an ICP nor declined never
     // searched at all. Reporting that as "Done" would be false.
-    if (await getRefinedIcp(runId)) return { totalCostUsd, end: ended, uncheckedLeft: await uncheckedCandidateCount(runId) };
+    if (await getRefinedIcp(runId)) {
+      if (icpOnly) return { totalCostUsd, end: "icp_saved", uncheckedLeft: 0 };
+      return { totalCostUsd, end: ended, uncheckedLeft: await uncheckedCandidateCount(runId) };
+    }
     final = null;
   }
 

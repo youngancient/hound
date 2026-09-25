@@ -104,7 +104,9 @@ export default async function HomePage() {
                       <span className="text-sm text-ash">
                         {search.status === "declined"
                           ? "Nothing searched"
-                          : `${search.qualifiedCount} ${search.qualifiedCount === 1 ? "lead" : "leads"}${active ? " so far" : ""}`}
+                          : search.status === "awaiting_review"
+                            ? "Waiting for review"
+                            : `${search.qualifiedCount} ${search.qualifiedCount === 1 ? "lead" : "leads"}${active ? " so far" : ""}`}
                       </span>
                       <span className="text-sm text-ash">
                         <LocalTime iso={search.created_at} mode="relative" />

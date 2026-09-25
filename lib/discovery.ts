@@ -54,6 +54,11 @@ const TESTED_LINKEDIN_LOCATIONS: Record<string, string> = {
   GB: "United Kingdom",
 };
 
+/** Whether a country goes to LinkedIn's location filter (otherwise it's searched by name). */
+export function hasLinkedinLocationFilter(countryCode: string): boolean {
+  return countryCode in TESTED_LINKEDIN_LOCATIONS;
+}
+
 const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
 
 export type ActorInput = {

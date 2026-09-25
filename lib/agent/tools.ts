@@ -33,8 +33,12 @@ function jsonResult(value: unknown) {
  * left to the agent's judgment — limits come from the run's own
  * `tool_limits` snapshot, and budget is reserved in Supabase before any
  * paid work happens. The agent never supplies a count.
+ *
+ * `icpOnly` is the first session of a search that asked for an ICP
+ * review: it gets only the tools to read progress, save the ICP or
+ * decline, so it can't reach discovery before the person has approved.
  */
-export function buildHoundTools(runId: string, limits: ToolLimits) {
+export function buildHoundTools(runId: string, limits: ToolLimits, { icpOnly = false }: { icpOnly?: boolean } = {}) {
   const formatRetry = createFormatRetryTracker();
 
   const get_progress = tool(
@@ -317,22 +321,14 @@ export function buildHoundTools(runId: string, limits: ToolLimits) {
     }
   );
 
-  const server = createSdkMcpServer({
-    name: "hound-tools",
-    version: "1.0.0",
-    tools: [get_progress, save_icp, cant_search_this, discover_companies, scrape_website, save_lead],
-  });
+  const tools = icpOnly
+    ? [get_progress, save_icp, cant_search_this]
+    : [get_progress, save_icp, cant_search_this, discover_companies, scrape_website, save_lead];
+
+  const server = createSdkMcpServer({ name: "hound-tools", version: "1.0.0", tools });
 
   return {
     server,
-    allowedToolNames: [
-      "mcp__hound-tools__get_progress",
-      "mcp__hound-tools__save_icp",
-      "mcp__hound-tools__cant_search_this",
-      "mcp__hound-tools__discover_companies",
-      "mcp__hound-tools__scrape_website",
-      "mcp__hound-tools__save_lead",
-      "Skill",
-    ],
+    allowedToolNames: [...tools.map((t) => `mcp__hound-tools__${t.name}`), "Skill"],
   };
 }

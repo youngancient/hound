@@ -26,3 +26,10 @@ const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
 export function countryName(code: string): string {
   return regionNames.of(code) ?? code;
 }
+
+/** Every country, sorted by name, for pickers. */
+export function allCountries(): Array<{ code: string; name: string }> {
+  return [...ISO_3166_ALPHA2]
+    .map((code) => ({ code, name: countryName(code) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}

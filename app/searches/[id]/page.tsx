@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/supabase/auth";
 import { AppHeader } from "@/components/AppHeader";
 import { PipelineTrail } from "@/components/PipelineTrail";
 import { IcpSummary } from "@/components/IcpSummary";
+import { IcpEditor } from "@/components/IcpEditor";
 import { LeadGroups } from "@/components/LeadGroups";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import type { RunStatus } from "@/lib/labels";
@@ -42,7 +43,14 @@ export default async function SearchDetailPage(props: {
   const isActive = run.status === "pending" || run.status === "running";
   const isOwner = !startedBy;
   const attempt = (run.attempt as number | null) ?? 1;
-  const timeLabel = isActive ? "Running for" : run.status === "failed" ? "Stopped after" : "Took";
+  const awaitingReview = run.status === "awaiting_review";
+  const timeLabel = isActive
+    ? "Running for"
+    : run.status === "failed"
+      ? "Stopped after"
+      : awaitingReview
+        ? "Hound's time so far"
+        : "Took";
   // Review order, and which company is open in the desktop detail panel.
   const ordered = orderLeads(leads);
   const requested = typeof query.lead === "string" ? query.lead : null;
@@ -75,6 +83,8 @@ export default async function SearchDetailPage(props: {
                       attemptStartedAt={attemptStartedAt}
                       priorAttemptsMs={Number(run.prior_attempts_ms ?? 0)}
                       completedAt={run.completed_at}
+                      reviewStartedAt={run.review_started_at}
+                      reviewWaitMs={Number(run.review_wait_ms ?? 0)}
                       serverNow={serverNow.toISOString()}
                     />
                     {attempt > 1 && (
@@ -150,7 +160,7 @@ export default async function SearchDetailPage(props: {
         {run.status !== "declined" && (
           <>
             {/* Progress only matters while it's moving or where it stopped; a finished search goes straight to results. */}
-            {run.status !== "completed" && (
+            {run.status !== "completed" && !awaitingReview && (
               <PipelineTrail
                 orientation="horizontal"
                 currentStage={run.current_stage ?? "Understanding the request"}
@@ -158,66 +168,74 @@ export default async function SearchDetailPage(props: {
               />
             )}
 
-            {icp && <IcpSummary icp={icp} />}
+            {awaitingReview && icp && isOwner && <IcpEditor runId={run.id} icp={icp} />}
+            {awaitingReview && !isOwner && (
+              <p className="rounded-sm border border-rule px-4 py-3 text-sm text-ash">
+                Waiting for {startedBy} to check how Hound read this request before it searches.
+              </p>
+            )}
+            {icp && !(awaitingReview && isOwner) && <IcpSummary icp={icp} />}
             {funnel.found > 0 && <SearchFunnel counts={funnel} isActive={isActive} />}
 
-            <div className="flex flex-col gap-5">
-              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule">
-                <nav aria-label="Results" className="-mb-px flex gap-6 text-sm">
-                  {[
-                    { key: "leads", label: `Leads (${funnel.leads})`, href: `/searches/${id}` },
-                    { key: "companies", label: `All companies (${funnel.found})`, href: `/searches/${id}?tab=companies` },
-                  ].map((t) => (
-                    <Link
-                      key={t.key}
-                      href={t.href}
-                      scroll={false}
-                      aria-current={tab === t.key ? "page" : undefined}
-                      className={`border-b-2 pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-                        tab === t.key ? "border-ink font-medium text-ink" : "border-transparent text-ash hover:text-ink"
-                      }`}
-                    >
-                      {t.label}
-                    </Link>
-                  ))}
-                </nav>
-                {funnel.leads > 0 && (
-                  <div className="pb-2">
-                    <ExportCsvButton
-                      baseHref={`/api/runs/${id}/export`}
-                      leadCount={funnel.leads}
-                      reviewCount={leads.filter((l) => l.qualification_status === "needs_review").length}
-                    />
+            {!awaitingReview && (
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule">
+                  <nav aria-label="Results" className="-mb-px flex gap-6 text-sm">
+                    {[
+                      { key: "leads", label: `Leads (${funnel.leads})`, href: `/searches/${id}` },
+                      { key: "companies", label: `All companies (${funnel.found})`, href: `/searches/${id}?tab=companies` },
+                    ].map((t) => (
+                      <Link
+                        key={t.key}
+                        href={t.href}
+                        scroll={false}
+                        aria-current={tab === t.key ? "page" : undefined}
+                        className={`border-b-2 pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                          tab === t.key ? "border-ink font-medium text-ink" : "border-transparent text-ash hover:text-ink"
+                        }`}
+                      >
+                        {t.label}
+                      </Link>
+                    ))}
+                  </nav>
+                  {funnel.leads > 0 && (
+                    <div className="pb-2">
+                      <ExportCsvButton
+                        baseHref={`/api/runs/${id}/export`}
+                        leadCount={funnel.leads}
+                        reviewCount={leads.filter((l) => l.qualification_status === "needs_review").length}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {tab === "companies" && companies ? (
+                  <CompaniesList runId={id} rows={companies.rows} complete={companies.complete} isActive={isActive} />
+                ) : isActive && leads.length === 0 ? (
+                  <p className="text-sm text-ash">Hound is still looking. Companies will show up here as it checks them.</p>
+                ) : (
+                  <div className="grid gap-8 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+                    <LeadGroups runId={id} leads={leads} isActive={isActive} selectedId={selected?.id ?? null} />
+                    {selected && (
+                      <aside
+                        aria-label="Company details"
+                        className="hidden lg:sticky lg:top-6 lg:flex lg:h-[calc(100dvh-3rem)] lg:flex-col lg:gap-5 lg:overflow-y-auto lg:self-start lg:border-l lg:border-rule lg:pl-8 lg:pr-5 lg:[scrollbar-gutter:stable]"
+                      >
+                        <LeadKeyboardNav prevHref={panelHref(selectedIndex - 1)} nextHref={panelHref(selectedIndex + 1)} />
+                        <PrevNext
+                          prevHref={panelHref(selectedIndex - 1)}
+                          nextHref={panelHref(selectedIndex + 1)}
+                          position={selectedIndex + 1}
+                          total={ordered.length}
+                          replace
+                        />
+                        <LeadDetail leadId={selected.id} headingLevel="h2" />
+                      </aside>
+                    )}
                   </div>
                 )}
               </div>
-
-              {tab === "companies" && companies ? (
-                <CompaniesList runId={id} rows={companies.rows} complete={companies.complete} isActive={isActive} />
-              ) : isActive && leads.length === 0 ? (
-                <p className="text-sm text-ash">Hound is still looking. Companies will show up here as it checks them.</p>
-              ) : (
-                <div className="grid gap-8 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-                  <LeadGroups runId={id} leads={leads} isActive={isActive} selectedId={selected?.id ?? null} />
-                  {selected && (
-                    <aside
-                      aria-label="Company details"
-                      className="hidden lg:sticky lg:top-6 lg:flex lg:h-[calc(100dvh-3rem)] lg:flex-col lg:gap-5 lg:overflow-y-auto lg:self-start lg:border-l lg:border-rule lg:pl-8 lg:pr-5 lg:[scrollbar-gutter:stable]"
-                    >
-                      <LeadKeyboardNav prevHref={panelHref(selectedIndex - 1)} nextHref={panelHref(selectedIndex + 1)} />
-                      <PrevNext
-                        prevHref={panelHref(selectedIndex - 1)}
-                        nextHref={panelHref(selectedIndex + 1)}
-                        position={selectedIndex + 1}
-                        total={ordered.length}
-                        replace
-                      />
-                      <LeadDetail leadId={selected.id} headingLevel="h2" />
-                    </aside>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
 
             {run.status === "completed" && (
               <details className="rounded-sm border border-rule px-4 py-3 text-sm">

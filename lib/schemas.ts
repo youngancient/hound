@@ -48,6 +48,47 @@ export const RefinedIcpSchema = z
   });
 export type RefinedIcp = z.infer<typeof RefinedIcpSchema>;
 
+/**
+ * A person's edits to a waiting search's ICP. Same rules as
+ * RefinedIcpSchema, plus size caps so a pasted essay can't bloat the
+ * agent's context. Deliberately a separate schema: saved ICPs, including
+ * older ones, keep being read with RefinedIcpSchema's rules, so a long
+ * existing ICP never stops loading. Hound's assumptions aren't part of an
+ * edit; the server keeps them as Hound wrote them.
+ */
+export const ICP_EDIT_MAX_CHARS = 300;
+export const ICP_EDIT_MAX_ITEMS = 10;
+const EditText = z.string().trim().max(ICP_EDIT_MAX_CHARS, `Keep each entry under ${ICP_EDIT_MAX_CHARS} characters.`);
+const EditList = z
+  .array(EditText.min(1, "Remove empty entries."))
+  .max(ICP_EDIT_MAX_ITEMS, `Keep each list to ${ICP_EDIT_MAX_ITEMS} entries or fewer.`);
+
+export const IcpEditSchema = z
+  .object({
+    target_company_type: EditText.min(1, "Say what kind of company to look for."),
+    industries: EditList,
+    geography: EditList,
+    headcount_min: z.number().int().nonnegative().nullable(),
+    headcount_max: z.number().int().positive().nullable(),
+    country_codes: z
+      .array(z.string().trim().toUpperCase().refine(isIsoCountryCode, { message: "Pick countries from the list." }))
+      .max(ICP_EDIT_MAX_ITEMS, `Pick ${ICP_EDIT_MAX_ITEMS} countries or fewer.`),
+    buyer_persona: EditText,
+    business_problem: EditText,
+    hard_filters: EditList,
+    soft_preferences: EditList,
+    disqualifiers: EditList,
+  })
+  .strict()
+  .refine((icp) => icp.headcount_min === null || icp.headcount_max === null || icp.headcount_min <= icp.headcount_max, {
+    message: "The smallest size can't be bigger than the largest.",
+    path: ["headcount_min"],
+  });
+export type IcpEdit = z.infer<typeof IcpEditSchema>;
+
+/** Body shape for POST /api/runs/:id/icp. No `icp` means "search with Hound's version as is". */
+export const ApproveIcpSchema = z.object({ icp: IcpEditSchema.optional() });
+
 export const ToolLimitsSchema = z.object({
   max_candidates: z.number().int().positive(),
   first_pass_candidates: z.number().int().positive(),
@@ -119,6 +160,8 @@ export const CreateRunSchema = z.object({
   idempotency_key: z.string().uuid(),
   /** Set once the user has seen the "searched this before" dialog and chosen to search again. */
   rerun: z.boolean().optional(),
+  /** "Let me check how Hound reads my request before it searches." */
+  review_icp: z.boolean().optional(),
 });
 export type CreateRunInput = z.infer<typeof CreateRunSchema>;
 
