@@ -71,7 +71,7 @@ export default async function HomePage() {
 
         <section aria-labelledby="your-searches" className="flex flex-col gap-4">
           <h2 id="your-searches" className="text-base font-medium">
-            Your searches
+            Past searches
           </h2>
 
           {searches.length === 0 ? (

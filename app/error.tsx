@@ -26,7 +26,7 @@ export default function ErrorPage({ error, retry }: { error: Error & { digest?: 
           Try again
         </button>
         <Link href="/" className="text-sm text-ash hover:text-ink">
-          Go to your searches
+          Go to past searches
         </Link>
       </div>
     </main>

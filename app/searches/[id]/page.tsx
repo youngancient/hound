@@ -68,7 +68,7 @@ export default async function SearchDetailPage(props: {
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6">
         <header className="flex flex-col gap-4 border-b border-rule pb-6">
           <Link href="/" className="w-fit text-xs text-ash hover:text-ink">
-            ← Your searches
+            ← Past searches
           </Link>
           <div className="flex items-start justify-between gap-6">
             <div className="flex min-w-0 flex-col gap-3">
@@ -190,9 +190,8 @@ export default async function SearchDetailPage(props: {
                         href={t.href}
                         scroll={false}
                         aria-current={tab === t.key ? "page" : undefined}
-                        className={`border-b-2 pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-                          tab === t.key ? "border-ink font-medium text-ink" : "border-transparent text-ash hover:text-ink"
-                        }`}
+                        className={`border-b-2 pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${tab === t.key ? "border-ink font-medium text-ink" : "border-transparent text-ash hover:text-ink"
+                          }`}
                       >
                         {t.label}
                       </Link>
